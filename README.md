@@ -1,6 +1,6 @@
 # Laravel Package Skeleton
 
-A minimal starting point for building Laravel packages. This phase-1 scaffold ships a hand-rolled service provider, a packaged config file, and the quality toolchain wired through composer scripts.
+A minimal starting point for building Laravel packages. Ships a hand-rolled service provider wired to Laravel's native package APIs, a full set of placeholder resources (routes, views, translations, migrations, assets, command), and a quality toolchain driven by composer scripts.
 
 ## Requirements
 
@@ -29,9 +29,40 @@ composer install
 ## Package Structure
 
 ```
-src/SkeletonServiceProvider.php  # Hand-rolled provider (mergeConfigFrom, guarded publishes)
-config/skeleton.php              # Packaged defaults
-tests/                           # Pest test suite (Feature + Unit)
-phpstan.neon.dist                # PHPStan configuration
-pint.json                        # Pint preset
+src/SkeletonServiceProvider.php           # Provider wired to native Laravel package APIs
+src/Skeleton.php                          # Package root class (facade accessor target)
+src/Facades/Skeleton.php                  # Skeleton facade
+src/Console/Commands/SkeletonCommand.php  # Placeholder Artisan command
+config/skeleton.php                       # Packaged defaults (mergeConfigFrom)
+routes/skeleton.php                       # Package routes (placeholder route)
+database/migrations/                      # Package migrations (publishable)
+lang/en/messages.php                      # PHP translations (skeleton:: namespace)
+resources/views/                          # Package views (skeleton:: namespace)
+public/                                   # Publishable assets
+tests/                                    # Pest test suite (Feature + Unit)
+phpstan.neon.dist                         # PHPStan configuration
+pint.json                                 # Pint preset
 ```
+
+## Provider Hooks
+
+The service provider wires these Laravel-native APIs with real placeholder files so each hook can be exercised and tested immediately:
+
+- `mergeConfigFrom()` — packaged config defaults
+- `loadRoutesFrom()` — package routes
+- `loadViewsFrom()` — package view namespace (`skeleton::`)
+- `loadTranslationsFrom()` — PHP translations (`skeleton::` namespace)
+- `publishes()` — config, views, lang, public assets
+- `publishesMigrations()` — migration publishing group
+- `commands()` — placeholder Artisan command (guarded by `runningInConsole()`)
+
+## Publish Tags
+
+| Tag | Publishes |
+|-----|-----------|
+| `skeleton` | Everything below (umbrella tag) |
+| `skeleton-config` | `config/skeleton.php` |
+| `skeleton-views` | Package views |
+| `skeleton-lang` | PHP translations |
+| `skeleton-assets` | Public assets |
+| `skeleton-migrations` | Migrations (via `publishesMigrations`) |

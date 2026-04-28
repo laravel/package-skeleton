@@ -74,7 +74,10 @@
         "laravel": {
             "providers": [
                 "VendorName\\Skeleton\\SkeletonServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Skeleton": "VendorName\\Skeleton\\Facades\\Skeleton"
+            }
         }
     },
     "config": {
