@@ -1,68 +1,103 @@
-# Laravel Package Skeleton
+<div align="center">
+    <h1>:package_name</h1>
+    :package_description
+</div>
 
-A minimal starting point for building Laravel packages. Ships a hand-rolled service provider wired to Laravel's native package APIs, a full set of placeholder resources (routes, views, translations, migrations, assets, command), and a quality toolchain driven by composer scripts.
+<p align="center">
+    <a href="https://packagist.org/packages/:vendor_slug/:package_slug"><img src="https://img.shields.io/packagist/v/:vendor_slug/:package_slug.svg?style=flat-square" alt="Packagist"></a>
+    <a href="https://packagist.org/packages/:vendor_slug/:package_slug"><img src="https://img.shields.io/packagist/php-v/:vendor_slug/:package_slug.svg?style=flat-square" alt="PHP from Packagist"></a>
+    <a href="https://packagist.org/packages/:vendor_slug/:package_slug"><img src="https://badge.laravel.cloud/badge/:vendor_slug/:package_slug?style=flat" alt="Laravel versions"></a>
+    <a href="https://github.com/:vendor_slug/:package_slug/actions"><img alt="GitHub Workflow Status (main)" src="https://img.shields.io/github/actions/workflow/status/:vendor_slug/:package_slug/tests.yml?branch=main&label=Tests&style=flat-square"></a>
+    <a href="https://packagist.org/packages/:vendor_slug/:package_slug"><img src="https://img.shields.io/packagist/dt/:vendor_slug/:package_slug.svg?style=flat-square" alt="Total Downloads"></a>
+</p>
 
-## Requirements
+<!--delete-->
+---
+This repo can be used to scaffold a Laravel package. Follow these steps to get started:
 
-- PHP 8.3, 8.4, or 8.5
-- Laravel 12 or 13
+1. Press the "Use this template" button at the top of this repo to create a new repo with the contents of this skeleton.
+2. Run `php ./configure.php` to replace every `:token` placeholder across the package.
+3. Run `composer test` to confirm the toolchain (PHPStan, Pint, Pest type coverage, Pest) is green.
+4. Have fun creating your package.
+---
+<!--/delete-->
 
-## Getting Started
+:package_description
 
-The repository ships with placeholder identifiers (`vendor-name/skeleton`, `VendorName\Skeleton\`, config key `skeleton`). Replace them with your own package coordinates before publishing. A scripted interactive bootstrap will land in a later phase.
+## Installation
+
+You can install the package via composer:
 
 ```bash
-composer install
+composer require :vendor_slug/:package_slug
 ```
 
-## Composer Scripts
+You can publish all of the package's resources at once using the umbrella tag:
 
-| Command | Description |
-|---------|-------------|
-| `composer lint` | Format the codebase with Laravel Pint. |
-| `composer lint:check` | Verify formatting without writing changes. |
-| `composer analyse` | Run PHPStan via Larastan at level 6. |
-| `composer test:types` | Enforce 100% Pest type coverage. |
-| `composer test:unit` | Run the Pest test suite in parallel. |
-| `composer test` | Run analyse, lint:check, test:types, and the Pest suite. |
-
-## Package Structure
-
-```
-src/SkeletonServiceProvider.php           # Provider wired to native Laravel package APIs
-src/Skeleton.php                          # Package root class (facade accessor target)
-src/Facades/Skeleton.php                  # Skeleton facade
-src/Console/Commands/SkeletonCommand.php  # Placeholder Artisan command
-config/skeleton.php                       # Packaged defaults (mergeConfigFrom)
-routes/skeleton.php                       # Package routes (placeholder route)
-database/migrations/                      # Package migrations (publishable)
-lang/en/messages.php                      # PHP translations (skeleton:: namespace)
-resources/views/                          # Package views (skeleton:: namespace)
-public/                                   # Publishable assets
-tests/                                    # Pest test suite (Feature + Unit)
-phpstan.neon.dist                         # PHPStan configuration
-pint.json                                 # Pint preset
+```bash
+php artisan vendor:publish --tag=":package_slug"
 ```
 
-## Provider Hooks
+Alternatively, you can publish each resource individually using the tags below.
 
-The service provider wires these Laravel-native APIs with real placeholder files so each hook can be exercised and tested immediately:
+### Publishing the Configuration File
 
-- `mergeConfigFrom()` — packaged config defaults
-- `loadRoutesFrom()` — package routes
-- `loadViewsFrom()` — package view namespace (`skeleton::`)
-- `loadTranslationsFrom()` — PHP translations (`skeleton::` namespace)
-- `publishes()` — config, views, lang, public assets
-- `publishesMigrations()` — migration publishing group
-- `commands()` — placeholder Artisan command (guarded by `runningInConsole()`)
+```bash
+php artisan vendor:publish --tag=":package_slug-config"
+```
 
-## Publish Tags
+### Publishing and Running the Migrations
 
-| Tag | Publishes |
-|-----|-----------|
-| `skeleton` | Everything below (umbrella tag) |
-| `skeleton-config` | `config/skeleton.php` |
-| `skeleton-views` | Package views |
-| `skeleton-lang` | PHP translations |
-| `skeleton-assets` | Public assets |
-| `skeleton-migrations` | Migrations (via `publishesMigrations`) |
+```bash
+php artisan vendor:publish --tag=":package_slug-migrations"
+php artisan migrate
+```
+
+### Publishing the Views
+
+```bash
+php artisan vendor:publish --tag=":package_slug-views"
+```
+
+### Publishing the Translations
+
+```bash
+php artisan vendor:publish --tag=":package_slug-lang"
+```
+
+### Publishing the Public Assets
+
+```bash
+php artisan vendor:publish --tag=":package_slug-assets"
+```
+
+## Usage
+
+Document how to use :package_name here.
+
+## Testing
+
+```bash
+composer test
+```
+
+## Changelog
+
+Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
+
+## Contributing
+
+Thank you for considering contributing to :package_name! You can read the contribution guide [here](.github/CONTRIBUTING.md).
+
+## Security Vulnerabilities
+
+Please review [our security policy](.github/SECURITY.md) on how to report security vulnerabilities.
+
+## Credits
+
+- [:author_name](https://github.com/:author_username)
+- [All Contributors](../../contributors)
+
+## License
+
+:package_name is open-sourced software licensed under the [MIT license](LICENSE.md).
