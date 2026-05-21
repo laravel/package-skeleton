@@ -58,9 +58,7 @@ final class LaravelPackageSkeletonConfigurator
         $metadata = [];
 
         foreach (self::metadataFields() as $key => $field) {
-            $default = $key === 'vendor_slug' && isset($metadata['author_username'])
-                ? self::slug((string) $metadata['author_username'])
-                : $defaults[$key];
+            $default = self::metadataDefault($key, $defaults, $metadata);
 
             $metadata[$key] = text($field['label'], default: $default, required: true, hint: $field['hint']);
         }
@@ -310,6 +308,20 @@ final class LaravelPackageSkeletonConfigurator
             'github' => $summary['github'],
             'summary' => $summary,
         ];
+    }
+
+    /**
+     * @param  array<string, string>  $defaults
+     * @param  array<string, string>  $metadata
+     */
+    private static function metadataDefault(string $key, array $defaults, array $metadata): string
+    {
+        return match (true) {
+            $key === 'vendor_slug' && isset($metadata['author_username']) => self::slug($metadata['author_username']),
+            $key === 'package_slug' && isset($metadata['package_name']) => self::slug($metadata['package_name']),
+            $key === 'class_name' && isset($metadata['package_name']) => self::studly(self::slug($metadata['package_name'])),
+            default => $defaults[$key],
+        };
     }
 
     /**
