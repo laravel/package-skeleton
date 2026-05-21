@@ -18,7 +18,6 @@
     ],
     "require": {
         "php": "^8.3",
-        "illuminate/contracts": "^12.0||^13.0",
         "illuminate/support": "^12.0||^13.0"
     },
     "require-dev": {
@@ -52,8 +51,7 @@
         ],
         "post-autoload-dump": [
             "@clear",
-            "@prepare",
-            "@composer run prepare"
+            "@prepare"
         ],
         "prepare": [
             "@php vendor/bin/testbench package:discover --ansi"
