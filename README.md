@@ -50,4 +50,4 @@ npm install
 npm run docs:dev
 ```
 
-Then open the local URL shown by VitePress, usually `http://localhost:5173/:package_slug/`.
+Then open the local URL shown by VitePress, usually `http://localhost:5173/`.

@@ -1,9 +1,12 @@
 import { defineConfig } from 'vitepress'
 
+const configuredBase = process.env.VITEPRESS_BASE ?? '/'
+const base = configuredBase.endsWith('/') ? configuredBase : `${configuredBase}/`
+
 export default defineConfig({
   title: ':package_name',
   description: ':package_description',
-  base: '/:package_slug/',
+  base,
   themeConfig: {
     sidebar: [
       { text: 'Overview', link: '/' },
