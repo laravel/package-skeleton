@@ -6,7 +6,7 @@ namespace VendorName\Skeleton\Console\Commands;
 
 use Illuminate\Console\Command;
 
-final class SkeletonCommand extends Command
+class SkeletonCommand extends Command
 {
     protected $signature = 'skeleton:placeholder';
 

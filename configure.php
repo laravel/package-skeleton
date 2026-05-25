@@ -14,7 +14,7 @@ use function Laravel\Prompts\spin;
 use function Laravel\Prompts\text;
 use function Laravel\Prompts\warning;
 
-final class LaravelPackageSkeletonConfigurator
+class LaravelPackageSkeletonConfigurator
 {
     public static function runInteractive(string $root): int
     {
