@@ -22,8 +22,7 @@ This repository is a Laravel package skeleton for building new packages. Preserv
 
 ## Local Skills
 
-- `package-scaffold`: use when adding package capabilities, files, or package shape changes.
-- `package-service-provider`: use when wiring config, routes, views, translations, migrations, assets, commands, or package metadata.
+- `package-scaffold`: use when adding package capabilities or wiring them through the service provider, including commands, migrations, routes, config, views, translations, assets, publish tags, and console-only behavior.
 - `package-testing`: use when adding or changing package tests with Pest 4 and Orchestra Testbench.
 - `package-release`: use when preparing changelog, release notes, tags, or GitHub release workflow changes.
 - `package-compatibility`: use when reviewing code, dependencies, or CI against the PHP and Laravel support matrix.
