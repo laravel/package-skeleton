@@ -66,12 +66,6 @@ Document how to use :package_name here.
 
 Access the full documentation [here](https://:vendor_slug.github.io/:package_slug).
 
-## Testing
-
-```bash
-composer test
-```
-
 ## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.

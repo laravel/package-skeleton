@@ -1,6 +1,6 @@
 ---
 name: package-docs
-description: "Use this skill when writing or revising package documentation after creating a package from this starter: README content, VitePress pages, contributing docs, upgrade notes, installation, usage, testing, workbench docs, or examples."
+description: "Use this skill when writing or revising package documentation after creating a package from this starter: README content, VitePress pages, contributing docs, upgrade notes, installation, usage, or examples."
 license: MIT
 metadata:
   author: laravel
@@ -10,7 +10,7 @@ metadata:
 
 ## Primary Goal
 
-Keep package docs concise, accurate, and useful for developers installing, configuring, testing, and contributing to the finished package.
+Keep package docs concise, accurate, and useful for developers installing, configuring, and contributing to the finished package.
 
 ## Workflow
 
@@ -25,7 +25,7 @@ Keep package docs concise, accurate, and useful for developers installing, confi
 
 - Prefer practical examples over abstract descriptions.
 - Use the configured package identity in commands, URLs, badges, namespaces, and publish tags.
-- Make installation, configuration, publishing, usage, testing, and workbench instructions easy to scan.
+- Make installation, configuration, publishing, and usage instructions easy to scan.
 - Explain only behavior that exists in the implemented package feature.
 - Keep headings stable and predictable so downstream authors can remove or expand sections safely.
 
@@ -43,7 +43,7 @@ Keep package docs concise, accurate, and useful for developers installing, confi
 ## Examples
 
 - Add installation docs that show `composer require :vendor_slug/:package_slug`, publish tags, and migration steps when relevant.
-- Add usage, testing, and workbench docs that explain how to run `composer test`, `composer build`, and `composer serve` without over-documenting internals.
+- Add usage docs with concise examples that show the package inside a normal Laravel application without over-documenting internals.
 
 ## Anti-Patterns
 
