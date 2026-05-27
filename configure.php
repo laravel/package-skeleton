@@ -679,7 +679,6 @@ class LaravelPackageSkeletonConfigurator
                 self::removeProviderCallAndMethod($provider, 'bootCommands', $summary, $root),
                 self::removeProviderLine($provider, 'Command;', $summary, $root),
                 self::removeLinesContaining($readme, ['command', 'Command'], $summary, $root),
-                self::removeLinesContaining($root.'/AGENTS.md', ['command', 'Command'], $summary, $root),
             ],
             'facade' => fn () => [
                 self::removePath($root, 'src/Facades', $summary),

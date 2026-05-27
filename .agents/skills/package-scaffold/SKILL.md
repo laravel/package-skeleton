@@ -1,6 +1,6 @@
 ---
 name: package-scaffold
-description: "Use this skill when adding Laravel package capabilities or wiring them through the service provider: commands, migrations, routes, config merges, views, translations, Blade components, assets, middleware, publish tags, workbench files, console-only behavior, or package metadata."
+description: "Use this skill when adding Laravel package capabilities or wiring them through the service provider: commands, migrations, routes, config merges, views, translations, assets, middleware, publish tags, workbench files, or console-only behavior."
 license: MIT
 metadata:
   author: laravel
@@ -15,7 +15,7 @@ Add package features in the right place and wire them through the service provid
 ## Workflow
 
 1. Inspect the existing package structure, sibling examples, README setup notes, and the current service provider before creating files.
-2. Identify whether the request touches commands, migrations, routes, config, views, translations, assets, middleware, Blade components, package metadata, tests, docs, compatibility, or release flow.
+2. Identify whether the request touches commands, migrations, routes, config, views, translations, assets, middleware, tests, docs, compatibility, or release flow.
 3. Create the capability files under Laravel-native package paths and use the configured package names, namespaces, publish tags, URLs, and badges consistently.
 4. Wire the capability through the service provider using the patterns in *Provider wiring* below.
 5. Use `package-testing` for coverage, `package-docs` for documentation, `package-compatibility` for matrix-sensitive changes, and `package-release` for release tasks.
@@ -24,12 +24,12 @@ Add package features in the right place and wire them through the service provid
 
 ## Provider Wiring
 
-1. Keep the existing service provider method split. If the package uses names like `registerResources`, `registerPublishing`, `registerBladeComponents`, `registerConsole`, or `registerAboutMetadata`, add new behavior to the matching concern.
+1. Keep the existing service provider method split. If the package uses names like `bootConfig`, `bootRoutes`, `bootViews`, `bootTranslations`, `bootMigrations`, `bootAssets`, or `bootCommands`, add new behavior to the matching concern.
 2. Put container bindings and `mergeConfigFrom` calls in `register()` when the host app must be able to override configuration.
 3. Put resource loading in boot-time methods with Laravel-native APIs such as `loadRoutesFrom`, `loadViewsFrom`, and `loadTranslationsFrom`.
 4. Guard console-only publishing and command registration with `runningInConsole()` before calling `publishes`, `publishesMigrations`, or `commands`.
 5. Name publish tags with the `:package_slug-*` convention so consumers can target individual resource groups.
-6. Add tests for the observable provider behavior: merged config, loaded routes, publish tags, command registration, or about metadata.
+6. Add tests for the observable provider behavior: merged config, loaded routes, publish tags, or command registration.
 
 Provider wiring anti-patterns:
 
