@@ -12,8 +12,6 @@ class SkeletonServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/skeleton.php', 'skeleton');
-
-        $this->app->singleton(Skeleton::class);
     }
 
     public function boot(): void
