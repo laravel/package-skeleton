@@ -33,9 +33,10 @@ Keep package docs concise, accurate, and useful for developers installing, confi
 
 - `README.md`
 - `docs/index.md`
-- `docs/installation.md`
-- `docs/usage.md`
-- `docs/testing.md`
+- `docs/getting-started/installation.md`
+- `docs/getting-started/configuration.md`
+- `docs/getting-started/changelog.md`
+- `docs/basics/usage.md`
 - `.github/CONTRIBUTING.md`
 - `docs/.vitepress/config.ts`
 

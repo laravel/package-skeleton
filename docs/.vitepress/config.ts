@@ -10,9 +10,20 @@ export default defineConfig({
   themeConfig: {
     sidebar: [
       { text: 'Overview', link: '/' },
-      { text: 'Installation', link: '/installation' },
-      { text: 'Usage', link: '/usage' },
-      { text: 'Testing', link: '/testing' },
+      {
+        text: 'Getting Started',
+        items: [
+          { text: 'Installation', link: '/getting-started/installation' },
+          { text: 'Configuration', link: '/getting-started/configuration' },
+          { text: 'Changelog', link: '/getting-started/changelog' },
+        ],
+      },
+      {
+        text: 'The Basics',
+        items: [
+          { text: 'Usage', link: '/basics/usage' },
+        ],
+      },
     ],
     search: {
       provider: 'local',

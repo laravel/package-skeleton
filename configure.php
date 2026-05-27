@@ -432,6 +432,10 @@ class LaravelPackageSkeletonConfigurator
     private static function replacePlaceholders(string $root, array $metadata, array &$summary): void
     {
         $replacements = self::replacements($metadata);
+        $placeholderPattern = '/'.implode('|', array_map(
+            static fn (string $placeholder): string => preg_quote($placeholder, '/'),
+            array_keys($replacements),
+        )).'/';
 
         foreach (self::textFiles($root) as $file) {
             $contents = file_get_contents($file);
@@ -440,7 +444,11 @@ class LaravelPackageSkeletonConfigurator
                 continue;
             }
 
-            $updated = strtr($contents, $replacements);
+            $updated = preg_replace_callback(
+                $placeholderPattern,
+                fn (array $matches): string => $replacements[(string) $matches[0]],
+                $contents,
+            ) ?? $contents;
 
             if ($updated === $contents) {
                 continue;
@@ -620,6 +628,9 @@ class LaravelPackageSkeletonConfigurator
     {
         $provider = $root.'/src/'.(string) $metadata['class_name'].'ServiceProvider.php';
         $readme = $root.'/README.md';
+        $docsConfig = $root.'/docs/.vitepress/config.ts';
+        $docsIndex = $root.'/docs/index.md';
+        $docsInstallation = $root.'/docs/getting-started/installation.md';
 
         $map = [
             'config' => fn () => [
@@ -627,6 +638,10 @@ class LaravelPackageSkeletonConfigurator
                 self::removeProviderCallAndMethod($provider, 'bootConfig', $summary, $root),
                 self::removeProviderLine($provider, 'mergeConfigFrom', $summary, $root),
                 self::removeMarkdownSection($readme, 'Publishing the Configuration File', $summary, $root),
+                self::removePath($root, 'docs/getting-started/configuration.md', $summary),
+                self::removeLinesContaining($docsConfig, ['Configuration'], $summary, $root),
+                self::removeLinesContaining($docsIndex, ['Configuration'], $summary, $root),
+                self::removeLinesContaining($docsInstallation, ['-config'], $summary, $root),
                 self::removeLinesContaining($root.'/phpstan.neon.dist', ['        - config'], $summary, $root),
             ],
             'routes' => fn () => [
@@ -638,21 +653,26 @@ class LaravelPackageSkeletonConfigurator
                 self::removePath($root, 'resources/views', $summary),
                 self::removeProviderCallAndMethod($provider, 'bootViews', $summary, $root),
                 self::removeMarkdownSection($readme, 'Publishing the Views', $summary, $root),
+                self::removeLinesContaining($docsInstallation, ['-views'], $summary, $root),
             ],
             'translations' => fn () => [
                 self::removePath($root, 'lang', $summary),
                 self::removeProviderCallAndMethod($provider, 'bootTranslations', $summary, $root),
                 self::removeMarkdownSection($readme, 'Publishing the Translations', $summary, $root),
+                self::removeLinesContaining($docsInstallation, ['-lang'], $summary, $root),
             ],
             'migrations' => fn () => [
                 self::removePath($root, 'database/migrations', $summary),
                 self::removeProviderCallAndMethod($provider, 'bootMigrations', $summary, $root),
                 self::removeMarkdownSection($readme, 'Publishing and Running the Migrations', $summary, $root),
+                self::removeLinesContaining($docsInstallation, ['-migrations'], $summary, $root),
+                self::removeMarkdownSection($docsInstallation, 'Running Migrations', $summary, $root),
             ],
             'assets' => fn () => [
                 self::removePath($root, 'public', $summary),
                 self::removeProviderCallAndMethod($provider, 'bootAssets', $summary, $root),
                 self::removeMarkdownSection($readme, 'Publishing the Public Assets', $summary, $root),
+                self::removeLinesContaining($docsInstallation, ['-assets'], $summary, $root),
             ],
             'commands' => fn () => [
                 self::removePath($root, 'src/Console/Commands', $summary),
@@ -683,6 +703,8 @@ class LaravelPackageSkeletonConfigurator
     private static function removeTool(string $root, string $tool, array &$summary): void
     {
         $readme = $root.'/README.md';
+        $docsConfig = $root.'/docs/.vitepress/config.ts';
+        $docsIndex = $root.'/docs/index.md';
 
         $map = [
             'dependabot' => fn () => [
@@ -695,6 +717,9 @@ class LaravelPackageSkeletonConfigurator
                 self::removePath($root, 'CHANGELOG.md', $summary),
                 self::removePath($root, '.github/workflows/update-changelog.yml', $summary),
                 self::removePath($root, '.github/release.yml', $summary),
+                self::removePath($root, 'docs/getting-started/changelog.md', $summary),
+                self::removeLinesContaining($docsConfig, ['Changelog'], $summary, $root),
+                self::removeLinesContaining($docsIndex, ['Changelog'], $summary, $root),
                 self::removeMarkdownSection($readme, 'Changelog', $summary, $root),
                 self::removeLinesContaining($readme, ['changelog', 'CHANGELOG'], $summary, $root),
             ],

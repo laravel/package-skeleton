@@ -64,6 +64,8 @@ php artisan vendor:publish --tag=":package_slug-assets"
 
 Document how to use :package_name here.
 
+Access the full documentation [here](https://:vendor_slug.github.io/:package_slug).
+
 ## Testing
 
 ```bash
