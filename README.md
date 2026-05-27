@@ -7,7 +7,7 @@ This repository is a starter for building Laravel packages. It includes a one-ti
 - Interactive one-time package configuration with `php ./configure.php`.
 - Laravel-native service provider wiring for config, routes, views, translations, migrations, assets, commands, and facades.
 - Pest, Larastan, Pint, Testbench, type coverage, and workbench scripts ready for package development.
-- Optional maintenance tooling for Dependabot auto-merge, changelog automation, funding, security policy, issue templates, and VitePress documentation.
+- Optional maintenance tooling for Dependabot update pull requests, changelog automation, funding, security policy, issue templates, and VitePress documentation.
 - AI guidance and reusable local skills for package authors.
 
 ## Getting Started
@@ -30,12 +30,12 @@ If you prefer to run the steps manually, run `composer install` first and then `
 
 During configuration, `README_PACKAGE.md` is customized and moved to `README.md`, replacing this skeleton README in the generated package.
 
-## Manual GitHub Setup
+## Manual GitHub Follow-up
 
-Some GitHub automation needs repository-level settings after you create your package repository:
+Some GitHub automation and maintenance choices need attention after you create your package repository:
 
 1. Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.
-2. Enable auto-merge and allow GitHub Actions to create and merge pull requests so Dependabot minor and patch updates can be merged automatically.
+2. Review Dependabot dependency update pull requests before merging them. This skeleton intentionally does not include a Dependabot automatic merge workflow.
 3. Create the labels used by generated release notes if you want clean categories: `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.
 4. Review branch protection rules for `main`. The changelog workflow needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.
 

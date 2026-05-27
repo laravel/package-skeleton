@@ -158,7 +158,7 @@ class LaravelPackageSkeletonConfigurator
     private static function tools(): array
     {
         return [
-            'dependabot_auto_merge' => 'Dependabot Auto Merge',
+            'dependabot' => 'Dependabot Pull Requests',
             'issue_template' => 'Issue Template',
             'changelog' => 'Changelog',
             'funding' => 'Funding',
@@ -349,8 +349,8 @@ class LaravelPackageSkeletonConfigurator
             $steps[] = 'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.';
         }
 
-        if (in_array('dependabot_auto_merge', $selectedTools, true)) {
-            $steps[] = 'Enable auto-merge and allow GitHub Actions to create and merge pull requests so Dependabot minor and patch updates can be merged automatically.';
+        if (in_array('dependabot', $selectedTools, true)) {
+            $steps[] = 'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
         }
 
         if (in_array('changelog', $selectedTools, true)) {
@@ -685,10 +685,10 @@ class LaravelPackageSkeletonConfigurator
         $readme = $root.'/README.md';
 
         $map = [
-            'dependabot_auto_merge' => fn () => [
+            'dependabot' => fn () => [
                 self::removePath($root, '.github/dependabot.yml', $summary),
-                self::removePath($root, '.github/workflows/dependabot-auto-merge.yml', $summary),
-                self::removeLinesContaining($readme, ['Dependabot', 'auto-merge'], $summary, $root),
+                self::removeLinesContaining($readme, ['Dependabot'], $summary, $root),
+                self::removeLinesContaining($root.'/docs/index.md', ['Dependabot'], $summary, $root),
             ],
             'issue_template' => fn () => self::removePath($root, '.github/ISSUE_TEMPLATE', $summary),
             'changelog' => fn () => [
