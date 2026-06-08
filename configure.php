@@ -289,7 +289,7 @@ class LaravelPackageSkeletonConfigurator
 
     /**
      * @param  array<string, mixed>  $options
-     * @return array<string, mixed>
+     * @return array{success: bool, errors: list<string>, github: array<string, mixed>, summary: array<string, mixed>}
      */
     private static function configure(array $options): array
     {
@@ -342,9 +342,7 @@ class LaravelPackageSkeletonConfigurator
         self::copyAgentsMarkdownToClaude();
         self::cleanupEmptyDirectories();
 
-        $formatResult = self::runCommand(
-            [PHP_BINARY, 'vendor/bin/pint', '--quiet'],
-        );
+        $formatResult = self::runCommand([PHP_BINARY, 'vendor/bin/pint', '--quiet']);
 
         if (! $formatResult['success']) {
             return [
@@ -358,10 +356,8 @@ class LaravelPackageSkeletonConfigurator
         }
 
         if (self::isGithubMode('create')) {
-            $githubResult = self::createGitHubRepository(
-                $metadata,
-                self::$githubConfig,
-            );
+            $githubResult = self::createGitHubRepository($metadata, self::$githubConfig);
+
             self::$summary['github'] = $githubResult;
 
             if (! $githubResult['success']) {
@@ -376,9 +372,7 @@ class LaravelPackageSkeletonConfigurator
 
         self::removePath('configure.php');
 
-        $dumpAutoloadResult = self::runCommand(
-            ['composer', 'dump-autoload', '--quiet'],
-        );
+        $dumpAutoloadResult = self::runCommand(['composer', 'dump-autoload', '--quiet']);
 
         if (! $dumpAutoloadResult['success']) {
             return [
@@ -407,11 +401,8 @@ class LaravelPackageSkeletonConfigurator
      * @param  array<string, string>  $defaults
      * @param  array<string, string>  $metadata
      */
-    private static function metadataDefault(
-        string $key,
-        array $defaults,
-        array $metadata,
-    ): string {
+    private static function metadataDefault(string $key, array $defaults, array $metadata): string
+    {
         return match (true) {
             $key === 'vendor_slug' && isset($metadata['author_username']) => self::slug($metadata['author_username']),
             $key === 'package_slug' && isset($metadata['package_name']) => self::slug($metadata['package_name']),
@@ -428,21 +419,23 @@ class LaravelPackageSkeletonConfigurator
     {
         $steps = [];
 
-        if (in_array('documentation', $selectedTools, true)) {
-            $steps[] =
-                'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.';
-        }
+        $toolSteps = [
+            'documentation' => [
+                'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.',
+            ],
+            'dependabot' => [
+                'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.',
+            ],
+            'changelog' => [
+                'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.',
+                'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.',
+            ],
+        ];
 
-        if (in_array('dependabot', $selectedTools, true)) {
-            $steps[] =
-                'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
-        }
-
-        if (in_array('changelog', $selectedTools, true)) {
-            $steps[] =
-                'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.';
-            $steps[] =
-                'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.';
+        foreach ($toolSteps as $tool => $toolStep) {
+            if (in_array($tool, $selectedTools)) {
+                $steps = array_merge($steps, $toolStep);
+            }
         }
 
         return $steps;
@@ -454,21 +447,17 @@ class LaravelPackageSkeletonConfigurator
      * @param  list<string>  $tools
      * @return list<string>
      */
-    private static function validate(
-        array $metadata,
-        array $features,
-        array $tools,
-    ): array {
+    private static function validate(array $metadata, array $features, array $tools): array
+    {
         $errors = [];
+        $paths = [
+            'composer.json',
+            'src/SkeletonServiceProvider.php',
+            'README.md',
+            'README_PACKAGE.md',
+        ];
 
-        foreach (
-            [
-                'composer.json',
-                'src/SkeletonServiceProvider.php',
-                'README.md',
-                'README_PACKAGE.md',
-            ] as $path
-        ) {
+        foreach ($paths as $path) {
             if (! file_exists(self::$rootDir.'/'.$path)) {
                 $errors[] = "Expected skeleton file [{$path}] was not found.";
             }
@@ -819,7 +808,7 @@ class LaravelPackageSkeletonConfigurator
                 'ServiceProvider',
         ];
 
-        if (! in_array('facade', $selectedFeatures, true)) {
+        if (! in_array('facade', $selectedFeatures)) {
             unset($composer['extra']['laravel']['aliases']);
         } else {
             $composer['extra']['laravel']['aliases'] = [
@@ -1578,8 +1567,8 @@ class LaravelPackageSkeletonConfigurator
     private static function isNonInteractive(): bool
     {
         return getenv('COMPOSER_NO_INTERACTION') === '1' ||
-            in_array('--no-interaction', $_SERVER['argv'] ?? [], true) ||
-            in_array('-n', $_SERVER['argv'] ?? [], true);
+            in_array('--no-interaction', $_SERVER['argv'] ?? []) ||
+            in_array('-n', $_SERVER['argv'] ?? []);
     }
 
     /** @return array<string, string> */
