@@ -566,12 +566,11 @@ class LaravelPackageSkeletonConfigurator
                 continue;
             }
 
-            $updated =
-                preg_replace_callback(
-                    $placeholderPattern,
-                    fn (array $matches): string => $replacements[(string) $matches[0]],
-                    $contents,
-                ) ?? $contents;
+            $updated = preg_replace_callback(
+                $placeholderPattern,
+                fn (array $matches): string => $replacements[(string) $matches[0]],
+                $contents,
+            ) ?? $contents;
 
             if ($updated === $contents) {
                 continue;
@@ -667,16 +666,16 @@ class LaravelPackageSkeletonConfigurator
 
     private static function isSkippedPath(string $relativePath): bool
     {
-        foreach (
-            [
-                '.git',
-                'vendor',
-                'node_modules',
-                'workbench',
-                '.phpunit.cache',
-                'bootstrap/cache',
-            ] as $skip
-        ) {
+        $toSkip = [
+            '.git',
+            'vendor',
+            'node_modules',
+            'workbench',
+            '.phpunit.cache',
+            'bootstrap/cache',
+        ];
+
+        foreach ($toSkip as $skip) {
             if (
                 $relativePath === $skip ||
                 str_starts_with($relativePath, $skip.'/')
@@ -726,13 +725,9 @@ class LaravelPackageSkeletonConfigurator
             'resources/boost/skills/'.$packageSlug.'-development',
         );
 
-        foreach (
-            glob(
-                self::$rootDir.
-                    '/database/migrations/*create_skeleton_placeholder_table.php',
-            ) ?:
-                [] as $migration
-        ) {
+        $migrationPaths = glob(self::$rootDir.'/database/migrations/*create_skeleton_placeholder_table.php') ?: [];
+
+        foreach ($migrationPaths as $migration) {
             $destination =
                 dirname($migration).
                 '/'.
@@ -751,26 +746,23 @@ class LaravelPackageSkeletonConfigurator
      * @param  array<string, mixed>  $metadata
      * @param  list<string>  $selectedFeatures
      */
-    private static function updateComposerJson(
-        array $metadata,
-        array $selectedFeatures,
-    ): void {
+    private static function updateComposerJson(array $metadata, array $selectedFeatures): void
+    {
         $path = self::$rootDir.'/composer.json';
         $composer = json_decode(
             (string) file_get_contents($path),
             true,
             flags: JSON_THROW_ON_ERROR,
         );
-        $namespace =
-            (string) $metadata['vendor_namespace'].
-            '\\'.
-            (string) $metadata['class_name'].
-            '\\';
+        $namespace = implode('\\', [
+            $metadata['vendor_namespace'],
+            $metadata['class_name'],
+        ]).'\\';
 
-        $composer['name'] =
-            (string) $metadata['vendor_slug'].
-            '/'.
-            (string) $metadata['package_slug'];
+        $composer['name'] = implode('/', [
+            $metadata['vendor_slug'],
+            $metadata['package_slug'],
+        ]);
         $composer['description'] = (string) $metadata['package_description'];
         $composer['keywords'] = array_values(
             array_unique([
