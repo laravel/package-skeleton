@@ -27,7 +27,7 @@ class LaravelPackageSkeletonConfigurator
 
     private const FAILURE = 1;
 
-    public static function runInteractive(string $root): int
+    public static function run(string $root): int
     {
         $autoload = $root.'/vendor/autoload.php';
         $defaults = self::defaults($root);
@@ -37,25 +37,7 @@ class LaravelPackageSkeletonConfigurator
         }
 
         if (self::isNonInteractive()) {
-            $result = self::configure($root, [
-                'metadata' => $defaults,
-                'features' => self::featureKeys(),
-                'tools' => self::toolKeys(),
-                'delete_configure' => true,
-                'github' => self::$githubConfig,
-            ]);
-
-            if (! $result['success']) {
-                foreach ($result['errors'] as $message) {
-                    fwrite(STDERR, (string) $message.PHP_EOL);
-                }
-
-                return self::FAILURE;
-            }
-
-            fwrite(STDOUT, 'Package configured successfully.'.PHP_EOL);
-
-            return self::SUCCESS;
+            return self::runNonInteractive($root, $defaults);
         }
 
         if (! function_exists("Laravel\Prompts\intro")) {
@@ -68,6 +50,11 @@ class LaravelPackageSkeletonConfigurator
             return self::FAILURE;
         }
 
+        return self::runInteractive($root, $defaults);
+    }
+
+    private static function runInteractive(string $root, array $defaults): int
+    {
         intro('Configure your Laravel package');
 
         $metadata = [];
@@ -135,6 +122,29 @@ class LaravelPackageSkeletonConfigurator
         }
 
         outro('Package configured successfully.');
+
+        return self::SUCCESS;
+    }
+
+    private static function runNonInteractive(string $root, array $defaults): int
+    {
+        $result = self::configure($root, [
+            'metadata' => $defaults,
+            'features' => self::featureKeys(),
+            'tools' => self::toolKeys(),
+            'delete_configure' => true,
+            'github' => self::$githubConfig,
+        ]);
+
+        if (! $result['success']) {
+            foreach ($result['errors'] as $message) {
+                fwrite(STDERR, (string) $message.PHP_EOL);
+            }
+
+            return self::FAILURE;
+        }
+
+        fwrite(STDOUT, 'Package configured successfully.'.PHP_EOL);
 
         return self::SUCCESS;
     }
@@ -1872,5 +1882,5 @@ if (
     PHP_SAPI === 'cli' &&
     realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__
 ) {
-    exit(LaravelPackageSkeletonConfigurator::runInteractive(__DIR__));
+    exit(LaravelPackageSkeletonConfigurator::run(__DIR__));
 }
