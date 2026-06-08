@@ -30,6 +30,7 @@ class LaravelPackageSkeletonConfigurator
     public static function runInteractive(string $root): int
     {
         $autoload = $root.'/vendor/autoload.php';
+        $defaults = self::defaults($root);
 
         if (file_exists($autoload)) {
             require_once $autoload;
@@ -37,7 +38,7 @@ class LaravelPackageSkeletonConfigurator
 
         if (self::isNonInteractive()) {
             $result = self::configure($root, [
-                'metadata' => self::defaults($root),
+                'metadata' => $defaults,
                 'features' => self::featureKeys(),
                 'tools' => self::toolKeys(),
                 'delete_configure' => true,
@@ -69,7 +70,6 @@ class LaravelPackageSkeletonConfigurator
 
         intro('Configure your Laravel package');
 
-        $defaults = self::defaults($root);
         $metadata = [];
 
         foreach (self::metadataFields() as $key => $field) {
@@ -93,40 +93,12 @@ class LaravelPackageSkeletonConfigurator
         self::setupGithubConfig();
 
         info('Summary');
-        info(
-            'Package: '.
-                $metadata['vendor_slug'].
-                '/'.
-                $metadata['package_slug'],
-        );
-        info(
-            'Features: '.
-                implode(
-                    ', ',
-                    array_map(
-                        fn (string $key): string => self::features()[$key],
-                        $features,
-                    ),
-                ),
-        );
-        info(
-            'Tools: '.
-                implode(
-                    ', ',
-                    array_map(
-                        fn (string $key): string => self::tools()[$key],
-                        $tools,
-                    ),
-                ),
-        );
+        info("Package: {$metadata['vendor_slug']}/{$metadata['package_slug']}");
+        info('Features: '.self::toList($features, fn (string $key): string => self::feature($key)));
+        info('Tools: '.self::toList($tools, fn (string $key): string => self::tool($key)));
 
         if (self::isGithubMode('create')) {
-            info(
-                'GitHub URL: https://github.com/'.
-                    $metadata['vendor_slug'].
-                    '/'.
-                    $metadata['package_slug'],
-            );
+            info("GitHub URL: https://github.com/{$metadata['vendor_slug']}/{$metadata['package_slug']}");
         }
 
         if (! confirm('Apply these changes?', true)) {
@@ -175,17 +147,13 @@ class LaravelPackageSkeletonConfigurator
     private static function setupGithubConfig(): void
     {
         if (! self::commandExists('gh')) {
-            warning(
-                'GitHub CLI was not found. Repository creation will be skipped.',
-            );
+            warning('GitHub CLI was not found. Repository creation will be skipped.');
 
             return;
         }
 
         if (! self::ghIsAuthenticated()) {
-            warning(
-                'GitHub CLI is not authenticated. Repository creation will be skipped.',
-            );
+            warning('GitHub CLI is not authenticated. Repository creation will be skipped.');
 
             return;
         }
@@ -220,6 +188,21 @@ class LaravelPackageSkeletonConfigurator
             'facade' => 'Facade',
             'boost_skill' => 'Boost Skill',
         ];
+    }
+
+    private static function toList(array $keys, callable $labelCallback): string
+    {
+        return implode(', ', array_map($labelCallback, $keys));
+    }
+
+    private static function feature(string $key): string
+    {
+        return self::features()[$key] ?? $key;
+    }
+
+    private static function tool(string $key): string
+    {
+        return self::tools()[$key] ?? $key;
     }
 
     /** @return list<string> */
@@ -1586,14 +1569,11 @@ class LaravelPackageSkeletonConfigurator
         bool $deleteConfigure,
         array &$summary,
     ): array {
-        $visibility =
-            ($github['visibility'] ?? 'private') === 'public'
-            ? 'public'
-            : 'private';
-        $repository =
-            (string) $metadata['vendor_slug'].
-            '/'.
-            (string) $metadata['package_slug'];
+        $visibility = match ($github['visibility'] ?? '') {
+            'public' => 'public',
+            'private' => 'private',
+        };
+        $repository = "{$metadata['vendor_slug']}/{$metadata['package_slug']}";
         $commands = [];
         $runner = $github['runner'] ?? null;
         $configurePath = $root.'/configure.php';
