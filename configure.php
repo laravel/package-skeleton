@@ -299,11 +299,7 @@ class LaravelPackageSkeletonConfigurator
         );
         $selectedTools = array_values($options['tools'] ?? self::toolKeys());
 
-        $errors = self::validate(
-            $metadata,
-            $selectedFeatures,
-            $selectedTools,
-        );
+        $errors = self::validate($metadata, $selectedFeatures, $selectedTools);
 
         if ($errors !== []) {
             return [
@@ -313,9 +309,7 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        $metadata['vendor_slug'] = self::slug(
-            (string) $metadata['vendor_slug'],
-        );
+        $metadata['vendor_slug'] = self::slug((string) $metadata['vendor_slug']);
 
         self::$summary = [
             'metadata' => $metadata,
@@ -337,9 +331,7 @@ class LaravelPackageSkeletonConfigurator
         self::updateComposerJson($metadata, $selectedFeatures);
         self::copyAgentSkillsToClaude();
 
-        foreach (
-            array_diff(self::featureKeys(), $selectedFeatures) as $feature
-        ) {
+        foreach (array_diff(self::featureKeys(), $selectedFeatures) as $feature) {
             self::removeFeature($feature, $metadata);
         }
 
@@ -370,14 +362,14 @@ class LaravelPackageSkeletonConfigurator
                 $metadata,
                 self::$githubConfig,
             );
-            $summary['github'] = $githubResult;
+            self::$summary['github'] = $githubResult;
 
             if (! $githubResult['success']) {
                 return [
                     'success' => false,
                     'errors' => [$githubResult['message']],
                     'github' => $githubResult,
-                    'summary' => $summary,
+                    'summary' => self::$summary,
                 ];
             }
         }
@@ -1267,7 +1259,7 @@ class LaravelPackageSkeletonConfigurator
             unlink($path);
         }
 
-        $summary['removed_paths'][] = $relativePath;
+        self::$summary['removed_paths'][] = $relativePath;
     }
 
     private static function renamePath(string $from, string $to): void
@@ -1284,8 +1276,8 @@ class LaravelPackageSkeletonConfigurator
         }
 
         rename($source, $destination);
-        $summary['removed_paths'][] = $from;
-        $summary['modified_files'][] = $to;
+        self::$summary['removed_paths'][] = $from;
+        self::$summary['modified_files'][] = $to;
     }
 
     private static function replacePackageReadme(): void
@@ -1377,7 +1369,7 @@ class LaravelPackageSkeletonConfigurator
                 ) === 0
             ) {
                 rmdir($path);
-                $summary['removed_paths'][] = $relativePath;
+                self::$summary['removed_paths'][] = $relativePath;
             }
         }
     }
@@ -1647,9 +1639,9 @@ class LaravelPackageSkeletonConfigurator
 
     private static function trackModified(string $path): void
     {
-        $summary['modified_files'][] = self::relativePath($path);
-        $summary['modified_files'] = array_values(
-            array_unique($summary['modified_files']),
+        self::$summary['modified_files'][] = self::relativePath($path);
+        self::$summary['modified_files'] = array_values(
+            array_unique(self::$summary['modified_files']),
         );
     }
 
