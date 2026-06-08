@@ -96,7 +96,6 @@ class LaravelPackageSkeletonConfigurator
                 'metadata' => $metadata,
                 'features' => $features,
                 'tools' => $tools,
-                'delete_configure' => true,
                 'github' => self::$githubConfig,
             ]),
             self::isGithubMode('create') ? 'Creating GitHub repository and pushing the initial commit...' : 'Configuring the package...',
@@ -129,7 +128,6 @@ class LaravelPackageSkeletonConfigurator
             'metadata' => $defaults,
             'features' => self::featureKeys(),
             'tools' => self::toolKeys(),
-            'delete_configure' => true,
             'github' => self::$githubConfig,
         ]);
 
@@ -292,7 +290,6 @@ class LaravelPackageSkeletonConfigurator
             $options['features'] ?? self::featureKeys(),
         );
         $selectedTools = array_values($options['tools'] ?? self::toolKeys());
-        $deleteConfigure = (bool) ($options['delete_configure'] ?? true);
 
         $errors = self::validate(
             $root,
@@ -367,8 +364,6 @@ class LaravelPackageSkeletonConfigurator
                 $root,
                 $metadata,
                 self::$githubConfig,
-                $deleteConfigure,
-                $summary,
             );
             $summary['github'] = $githubResult;
 
@@ -382,7 +377,7 @@ class LaravelPackageSkeletonConfigurator
             }
         }
 
-        if ($deleteConfigure && ! self::isGithubMode('create')) {
+        if (! self::isGithubMode('create')) {
             self::removePath($root, 'configure.php', $summary);
         }
 
@@ -1572,8 +1567,6 @@ class LaravelPackageSkeletonConfigurator
         string $root,
         array $metadata,
         array $github,
-        bool $deleteConfigure,
-        array &$summary,
     ): array {
         $visibility = match ($github['visibility'] ?? '') {
             'public' => 'public',
@@ -1638,10 +1631,6 @@ class LaravelPackageSkeletonConfigurator
                 'commands' => $commands,
                 'created_repositories' => [],
             ];
-        }
-
-        if ($deleteConfigure) {
-            self::removePath($root, 'configure.php', $summary);
         }
 
         $gitCommands = [
