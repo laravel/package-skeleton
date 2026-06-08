@@ -1384,6 +1384,10 @@ class LaravelPackageSkeletonConfigurator
     private static function replacePackageReadme(
         array &$summary,
     ): void {
+        if (! file_exists(self::$rootDir.'/README_PACKAGE.md')) {
+            return;
+        }
+
         self::removePath('README.md', $summary);
         self::renamePath('README_PACKAGE.md', 'README.md', $summary);
     }
@@ -1489,7 +1493,7 @@ class LaravelPackageSkeletonConfigurator
     ): array {
         $visibility = match ($github['visibility'] ?? '') {
             'public' => 'public',
-            'private' => 'private',
+            default => 'private',
         };
         $repository = "{$metadata['vendor_slug']}/{$metadata['package_slug']}";
         $commands = [];
