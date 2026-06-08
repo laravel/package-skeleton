@@ -377,9 +377,7 @@ class LaravelPackageSkeletonConfigurator
             }
         }
 
-        if (! self::isGithubMode('create')) {
-            self::removePath('configure.php', $summary);
-        }
+        self::removePath('configure.php', $summary);
 
         $dumpAutoloadResult = self::runCommand(
             ['composer', 'dump-autoload', '--quiet'],
@@ -656,7 +654,7 @@ class LaravelPackageSkeletonConfigurator
                 continue;
             }
 
-            $relativePath = self::relativePath($dir, $file->getPathname());
+            $relativePath = self::relativePath($file->getPathname(), $dir);
 
             if (
                 self::isSkippedPath($relativePath) ||
