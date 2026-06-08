@@ -30,11 +30,12 @@ class LaravelPackageSkeletonConfigurator
     public static function run(string $root): int
     {
         $autoload = $root.'/vendor/autoload.php';
-        $defaults = self::defaults($root);
 
         if (file_exists($autoload)) {
             require_once $autoload;
         }
+
+        $defaults = self::defaults($root);
 
         if (self::isNonInteractive()) {
             return self::runNonInteractive($root, $defaults);
@@ -292,7 +293,6 @@ class LaravelPackageSkeletonConfigurator
         );
         $selectedTools = array_values($options['tools'] ?? self::toolKeys());
         $deleteConfigure = (bool) ($options['delete_configure'] ?? true);
-        $github = $options['github'] ?? ['mode' => 'skip'];
 
         $errors = self::validate(
             $root,
@@ -362,11 +362,11 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        if (($github['mode'] ?? 'skip') === 'create') {
+        if (self::isGithubMode('create')) {
             $githubResult = self::createGitHubRepository(
                 $root,
                 $metadata,
-                $github,
+                self::$githubConfig,
                 $deleteConfigure,
                 $summary,
             );
@@ -382,7 +382,7 @@ class LaravelPackageSkeletonConfigurator
             }
         }
 
-        if ($deleteConfigure && ($github['mode'] ?? 'skip') !== 'create') {
+        if ($deleteConfigure && ! self::isGithubMode('create')) {
             self::removePath($root, 'configure.php', $summary);
         }
 
