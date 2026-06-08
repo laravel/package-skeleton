@@ -70,11 +70,7 @@ class LaravelPackageSkeletonConfigurator
             );
         }
 
-        $features = multiselect(
-            'Package Features',
-            self::features(),
-            self::featureKeys(),
-        );
+        $features = multiselect('Package Features', self::features(), self::featureKeys());
         $tools = multiselect('Package Tools', self::tools(), self::toolKeys());
 
         self::setupGithubConfig();
