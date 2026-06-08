@@ -96,7 +96,7 @@ class LaravelPackageSkeletonConfigurator
                 'features' => $features,
                 'tools' => $tools,
                 'delete_configure' => true,
-                'github' => $github,
+                'github' => self::$githubConfig,
             ]),
             self::isGithubMode('create') ? 'Creating GitHub repository and pushing the initial commit...' : 'Configuring the package...',
         );
@@ -113,7 +113,7 @@ class LaravelPackageSkeletonConfigurator
             info('Manual follow-up steps:');
 
             foreach ($result['summary']['manual_steps'] as $manualStep) {
-                info('- '.(string) $manualStep);
+                info("· {$manualStep}");
             }
         }
 
