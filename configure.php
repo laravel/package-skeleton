@@ -106,7 +106,6 @@ class LaravelPackageSkeletonConfigurator
             fn (): array => self::configure([
                 'features' => $features,
                 'tools' => $tools,
-                'github' => self::$githubConfig,
             ]),
             self::isGithubMode('create') ? 'Creating GitHub repository and pushing the initial commit...' : 'Configuring the package...',
         );
@@ -137,10 +136,8 @@ class LaravelPackageSkeletonConfigurator
         self::$metadata = $defaults;
 
         $result = self::configure([
-            'metadata' => $defaults,
             'features' => self::featureKeys(),
             'tools' => self::toolKeys(),
-            'github' => self::$githubConfig,
         ]);
 
         if (! $result['success']) {
