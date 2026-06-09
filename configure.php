@@ -542,12 +542,9 @@ class LaravelPackageSkeletonConfigurator
         return self::metadataFields()[$key]['label'] ?? self::headline($key);
     }
 
-    /**
-     * @param  array<string, mixed>  $metadata
-     */
-    private static function replacePlaceholders(array $metadata): void
+    private static function replacePlaceholders(): void
     {
-        $replacements = self::replacements($metadata);
+        $replacements = self::replacements();
         $placeholderPattern =
             '/'.
             implode(
@@ -585,7 +582,6 @@ class LaravelPackageSkeletonConfigurator
     }
 
     /**
-     * @param  array<string, mixed>  $metadata
      * @return array<string, string>
      */
     private static function replacements(): array
@@ -687,13 +683,10 @@ class LaravelPackageSkeletonConfigurator
         return false;
     }
 
-    /**
-     * @param  array<string, mixed>  $metadata
-     */
-    private static function renamePackageFiles(array $metadata): void
+    private static function renamePackageFiles(): void
     {
-        $className = $metadata['class_name'];
-        $packageSlug = $metadata['package_slug'];
+        $className = self::$metadata['class_name'];
+        $packageSlug = self::$metadata['package_slug'];
         $tableName = self::snake($packageSlug).'_placeholder';
 
         self::renamePath(
@@ -743,7 +736,6 @@ class LaravelPackageSkeletonConfigurator
     }
 
     /**
-     * @param  array<string, mixed>  $metadata
      * @param  list<string>  $selectedFeatures
      */
     private static function updateComposerJson(array $selectedFeatures): void
