@@ -5,6 +5,9 @@ declare(strict_types=1);
 
 use Laravel\AgentDetector\AgentDetector;
 use Laravel\Chisel\Chisel;
+use Symfony\Component\Console\Input\ArgvInput;
+use Symfony\Component\Console\Input\InputDefinition;
+use Symfony\Component\Console\Input\InputOption;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
@@ -29,6 +32,10 @@ class LaravelPackageSkeletonConfigurator
     private static ?string $rootDir = null;
 
     private static ?Chisel $chisel = null;
+
+    private static ?InputDefinition $definition = null;
+
+    private static ?ArgvInput $input = null;
 
     /**
      * @var array{'metadata': array<string, mixed>, 'selected_features': list<string>, 'selected_tools': list<string>, 'removed_paths': list<string>, 'modified_files': list<string>, 'manual_steps': list<string>}
@@ -65,6 +72,21 @@ class LaravelPackageSkeletonConfigurator
             }
 
             return self::FAILURE;
+        }
+
+        try {
+            $input = self::input();
+        } catch (RuntimeException $e) {
+            fwrite(STDERR, $e->getMessage().PHP_EOL.PHP_EOL);
+            self::printHelp();
+
+            return self::FAILURE;
+        }
+
+        if ($input->getOption('help')) {
+            self::printHelp();
+
+            return self::SUCCESS;
         }
 
         $defaults = self::defaults();
@@ -183,23 +205,17 @@ class LaravelPackageSkeletonConfigurator
     /** @return list<string> */
     private static function nonInteractiveFeatures(): array
     {
-        $features = self::featureKeys();
-
         return array_values(
             array_filter(
-                $features,
-                fn (string $feature): bool => ! in_array(
-                    self::featureDisableFlag($feature),
-                    $_SERVER['argv'] ?? [],
-                    true,
-                ),
+                self::featureKeys(),
+                fn (string $feature): bool => ! self::input()->getOption(self::keyToOption($feature)),
             ),
         );
     }
 
-    private static function featureDisableFlag(string $feature): string
+    private static function keyToOption(string $key): string
     {
-        return '--no-'.str_replace('_', '-', $feature);
+        return 'no-'.str_replace('_', '-', $key);
     }
 
     /** @param  array<string, mixed>  $payload */
@@ -1474,7 +1490,9 @@ class LaravelPackageSkeletonConfigurator
 
     private static function isNonInteractive(): bool
     {
-        return self::hasNonInteractiveFlags() || AgentDetector::detect()->isAgent;
+        return self::input()->getOption('no-interaction') ||
+            getenv('COMPOSER_NO_INTERACTION') === '1' ||
+            AgentDetector::detect()->isAgent;
     }
 
     private static function hasNonInteractiveFlags(): bool
@@ -1482,6 +1500,47 @@ class LaravelPackageSkeletonConfigurator
         return getenv('COMPOSER_NO_INTERACTION') === '1' ||
             in_array('--no-interaction', $_SERVER['argv'] ?? []) ||
             in_array('-n', $_SERVER['argv'] ?? []);
+    }
+
+    private static function definition(): InputDefinition
+    {
+        return self::$definition ??= self::getInputDefinition();
+    }
+
+    private static function getInputDefinition(): InputDefinition
+    {
+        $featureOptions = array_map(
+            fn (string $key) => new InputOption(
+                self::keyToOption($key),
+                null,
+                InputOption::VALUE_NONE,
+                sprintf('Disable the %s feature', self::feature($key)),
+            ),
+            self::featureKeys(),
+        );
+
+        return new InputDefinition([
+            new InputOption('no-interaction', 'n', InputOption::VALUE_NONE, 'Run non-interactively with all defaults'),
+            ...$featureOptions,
+            new InputOption('help', 'h', InputOption::VALUE_NONE, 'Show usage information'),
+        ]);
+    }
+
+    private static function input(): ArgvInput
+    {
+        return self::$input ??= new ArgvInput(null, self::definition());
+    }
+
+    private static function printHelp(): void
+    {
+        $lines = ['Usage: php configure.php [options]', '', 'Options:'];
+
+        foreach (self::definition()->getOptions() as $option) {
+            $shortcut = $option->getShortcut() ? sprintf('-%s, ', $option->getShortcut()) : '    ';
+            $lines[] = sprintf('  %s--%-24s%s', $shortcut, $option->getName(), $option->getDescription());
+        }
+
+        fwrite(STDOUT, implode(PHP_EOL, $lines).PHP_EOL);
     }
 
     /** @return array<string, string> */
