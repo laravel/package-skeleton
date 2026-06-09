@@ -31,7 +31,7 @@ class LaravelPackageSkeletonConfigurator
     private static ?Chisel $chisel = null;
 
     /**
-     * @var array{'metadata': array<string, mixed>, 'selected_features': list<string>, 'selected_tools': list<string>, 'removed_paths': list<string>, 'modified_files': list<string>, 'github': array<string, mixed>, 'manual_steps': list<string>}
+     * @var array{'metadata': array<string, mixed>, 'selected_features': list<string>, 'selected_tools': list<string>, 'removed_paths': list<string>, 'modified_files': list<string>, 'manual_steps': list<string>}
      */
     private static array $summary = [];
 
@@ -376,13 +376,14 @@ class LaravelPackageSkeletonConfigurator
         self::$metadata['vendor_slug'] = self::slug(self::$metadata['vendor_slug']);
         self::$metadata['author_username'] ??= self::$metadata['vendor_slug'];
 
+        $github = self::defaultGithubResult();
+
         self::$summary = [
             'metadata' => self::$metadata,
             'selected_features' => $selectedFeatures,
             'selected_tools' => $selectedTools,
             'removed_paths' => [],
             'modified_files' => [],
-            'github' => self::defaultGithubResult(),
             'manual_steps' => self::manualSteps($selectedTools),
         ];
 
@@ -414,21 +415,19 @@ class LaravelPackageSkeletonConfigurator
                 'errors' => [
                     'Code formatting failed: '.$formatResult['output'],
                 ],
-                'github' => self::$summary['github'],
+                'github' => $github,
                 'summary' => self::$summary,
             ];
         }
 
         if (self::isGithubMode('create')) {
-            $githubResult = self::createGitHubRepository(self::$githubConfig);
+            $github = self::createGitHubRepository(self::$githubConfig);
 
-            self::$summary['github'] = $githubResult;
-
-            if (! $githubResult['success']) {
+            if (! $github['success']) {
                 return [
                     'success' => false,
-                    'errors' => [$githubResult['message']],
-                    'github' => $githubResult,
+                    'errors' => [$github['message']],
+                    'github' => $github,
                     'summary' => self::$summary,
                 ];
             }
@@ -447,7 +446,7 @@ class LaravelPackageSkeletonConfigurator
                     'Composer autoload generation failed: '.
                         $dumpAutoloadResult['output'],
                 ],
-                'github' => self::$summary['github'],
+                'github' => $github,
                 'summary' => self::$summary,
             ];
         }
@@ -458,7 +457,7 @@ class LaravelPackageSkeletonConfigurator
         return [
             'success' => true,
             'errors' => [],
-            'github' => self::$summary['github'],
+            'github' => $github,
             'summary' => self::$summary,
         ];
     }
