@@ -64,4 +64,4 @@ jobs:
 
       - name: Test Suite (Windows)
         if: runner.os == 'Windows'
-        run: vendor/bin/pest
+        run: vendor/bin/pest --configuration phpunit.xml.dist
