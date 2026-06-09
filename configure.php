@@ -30,6 +30,8 @@ class LaravelPackageSkeletonConfigurator
      */
     private static array $summary = [];
 
+    private static array $metadata = [];
+
     private const SUCCESS = 0;
 
     private const FAILURE = 1;
@@ -67,17 +69,17 @@ class LaravelPackageSkeletonConfigurator
     {
         intro('Configure your Laravel package');
 
-        $metadata = [];
-
         foreach (self::metadataFields() as $key => $field) {
-            $default = self::metadataDefault($key, $defaults, $metadata);
+            $default = self::metadataDefault($key, $defaults);
 
-            $metadata[$key] = text(
+            self::$metadata[$key] = text(
                 $field['label'],
                 default: $default,
                 required: true,
                 hint: $field['hint'],
             );
+
+            self::castMetadata($key);
         }
 
         $features = multiselect('Package Features', self::features(), self::featureKeys());
@@ -86,12 +88,12 @@ class LaravelPackageSkeletonConfigurator
         self::setupGithubConfig();
 
         info('Summary');
-        info("Package: {$metadata['vendor_slug']}/{$metadata['package_slug']}");
+        info(sprintf('Package: %s/%s', self::$metadata['vendor_slug'], self::$metadata['package_slug']));
         info('Features: '.self::toList($features, fn (string $key): string => self::feature($key)));
         info('Tools: '.self::toList($tools, fn (string $key): string => self::tool($key)));
 
         if (self::isGithubMode('create')) {
-            info("GitHub URL: https://github.com/{$metadata['vendor_slug']}/{$metadata['package_slug']}");
+            info(sprintf('GitHub URL: https://github.com/%s/%s', self::$metadata['vendor_slug'], self::$metadata['package_slug']));
         }
 
         if (! confirm('Apply these changes?', true)) {
@@ -102,7 +104,6 @@ class LaravelPackageSkeletonConfigurator
 
         $result = spin(
             fn (): array => self::configure([
-                'metadata' => $metadata,
                 'features' => $features,
                 'tools' => $tools,
                 'github' => self::$githubConfig,
@@ -293,13 +294,12 @@ class LaravelPackageSkeletonConfigurator
      */
     private static function configure(array $options): array
     {
-        $metadata = $options['metadata'] ?? [];
         $selectedFeatures = array_values(
             $options['features'] ?? self::featureKeys(),
         );
         $selectedTools = array_values($options['tools'] ?? self::toolKeys());
 
-        $errors = self::validate($metadata, $selectedFeatures, $selectedTools);
+        $errors = self::validate($selectedFeatures, $selectedTools);
 
         if ($errors !== []) {
             return [
@@ -309,10 +309,10 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        $metadata['vendor_slug'] = self::slug((string) $metadata['vendor_slug']);
+        self::$metadata['vendor_slug'] = self::slug(self::$metadata['vendor_slug']);
 
         self::$summary = [
-            'metadata' => $metadata,
+            'metadata' => self::$metadata,
             'selected_features' => $selectedFeatures,
             'selected_tools' => $selectedTools,
             'removed_paths' => [],
@@ -326,13 +326,13 @@ class LaravelPackageSkeletonConfigurator
         ];
 
         self::replacePackageReadme();
-        self::replacePlaceholders($metadata);
-        self::renamePackageFiles($metadata);
-        self::updateComposerJson($metadata, $selectedFeatures);
+        self::replacePlaceholders();
+        self::renamePackageFiles();
+        self::updateComposerJson($selectedFeatures);
         self::copyAgentSkillsToClaude();
 
         foreach (array_diff(self::featureKeys(), $selectedFeatures) as $feature) {
-            self::removeFeature($feature, $metadata);
+            self::removeFeature($feature);
         }
 
         foreach (array_diff(self::toolKeys(), $selectedTools) as $tool) {
@@ -356,7 +356,7 @@ class LaravelPackageSkeletonConfigurator
         }
 
         if (self::isGithubMode('create')) {
-            $githubResult = self::createGitHubRepository($metadata, self::$githubConfig);
+            $githubResult = self::createGitHubRepository(self::$githubConfig);
 
             self::$summary['github'] = $githubResult;
 
@@ -399,16 +399,39 @@ class LaravelPackageSkeletonConfigurator
 
     /**
      * @param  array<string, string>  $defaults
-     * @param  array<string, string>  $metadata
      */
-    private static function metadataDefault(string $key, array $defaults, array $metadata): string
+    private static function metadataDefault(string $key, array $defaults): string
     {
         return match (true) {
-            $key === 'vendor_slug' && isset($metadata['author_username']) => self::slug($metadata['author_username']),
-            $key === 'package_slug' && isset($metadata['package_name']) => self::slug($metadata['package_name']),
-            $key === 'class_name' && isset($metadata['package_name']) => self::studly(self::slug($metadata['package_name'])),
+            $key === 'vendor_slug' && self::hasMetadata('author_username') => self::slug(self::$metadata['author_username']),
+            $key === 'package_slug' && self::hasMetadata('package_name') => self::slug(self::$metadata['package_name']),
+            $key === 'class_name' && self::hasMetadata('package_name') => self::studly(self::slug(self::$metadata['package_name'])),
             default => $defaults[$key],
         };
+    }
+
+    private static function castMetadata(string $key): void
+    {
+        $stringMetadata = [
+            'author_name',
+            'author_email',
+            'author_username',
+            'vendor_slug',
+            'vendor_namespace',
+            'package_name',
+            'package_slug',
+            'class_name',
+            'package_description',
+        ];
+
+        if (in_array($key, $stringMetadata) && isset(self::$metadata[$key])) {
+            self::$metadata[$key] = (string) self::$metadata[$key];
+        }
+    }
+
+    private static function hasMetadata(string $key): bool
+    {
+        return isset(self::$metadata[$key]) && trim((string) self::$metadata[$key]) !== '';
     }
 
     /**
@@ -442,12 +465,11 @@ class LaravelPackageSkeletonConfigurator
     }
 
     /**
-     * @param  array<string, mixed>  $metadata
      * @param  list<string>  $features
      * @param  list<string>  $tools
      * @return list<string>
      */
-    private static function validate(array $metadata, array $features, array $tools): array
+    private static function validate(array $features, array $tools): array
     {
         $errors = [];
         $paths = [
@@ -464,54 +486,35 @@ class LaravelPackageSkeletonConfigurator
         }
 
         foreach (array_keys(self::metadataFields()) as $key) {
-            if (
-                ! isset($metadata[$key]) ||
-                trim((string) $metadata[$key]) === ''
-            ) {
+            if (! self::hasMetadata($key)) {
                 $errors[] = self::fieldLabel($key).' is required.';
             }
         }
 
         if (
-            isset($metadata['author_email']) &&
-            filter_var($metadata['author_email'], FILTER_VALIDATE_EMAIL) ===
-            false
+            self::hasMetadata('author_email') &&
+            filter_var(self::$metadata['author_email'], FILTER_VALIDATE_EMAIL) === false
         ) {
-            $errors[] =
-                self::fieldLabel('author_email').
-                ' must be a valid email address.';
+            $errors[] = self::fieldLabel('author_email').' must be a valid email address.';
         }
 
         if (
-            isset($metadata['vendor_slug']) &&
-            ! preg_match(
-                '/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/',
-                (string) $metadata['vendor_slug'],
-            )
+            self::hasMetadata('vendor_slug') &&
+            ! preg_match('/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/', self::$metadata['vendor_slug'])
         ) {
-            $errors[] =
-                self::fieldLabel('vendor_slug').
-                ' may only contain letters, numbers, and hyphens.';
+            $errors[] = self::fieldLabel('vendor_slug').' may only contain letters, numbers, and hyphens.';
         }
 
         if (
-            isset($metadata['package_slug']) &&
-            ! preg_match(
-                '/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                (string) $metadata['package_slug'],
-            )
+            self::hasMetadata('package_slug') &&
+            ! preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', self::$metadata['package_slug'])
         ) {
-            $errors[] =
-                self::fieldLabel('package_slug').' must be a lowercase slug.';
+            $errors[] = self::fieldLabel('package_slug').' must be a lowercase slug.';
         }
 
         foreach (['vendor_namespace', 'class_name'] as $key) {
-            if (
-                isset($metadata[$key]) &&
-                ! self::isPhpIdentifier((string) $metadata[$key])
-            ) {
-                $errors[] =
-                    self::fieldLabel($key).' must be a valid PHP identifier.';
+            if (isset($metadata[$key]) && ! self::isPhpIdentifier(self::$metadata[$key])) {
+                $errors[] = self::fieldLabel($key).' must be a valid PHP identifier.';
             }
         }
 
@@ -585,29 +588,29 @@ class LaravelPackageSkeletonConfigurator
      * @param  array<string, mixed>  $metadata
      * @return array<string, string>
      */
-    private static function replacements(array $metadata): array
+    private static function replacements(): array
     {
-        $vendorNamespace = (string) $metadata['vendor_namespace'];
-        $className = (string) $metadata['class_name'];
-        $packageSlug = (string) $metadata['package_slug'];
-        $packageName = (string) $metadata['package_name'];
-        $vendorSlug = (string) $metadata['vendor_slug'];
+        $vendorNamespace = self::$metadata['vendor_namespace'];
+        $className = self::$metadata['class_name'];
+        $packageSlug = self::$metadata['package_slug'];
+        $packageName = self::$metadata['package_name'];
+        $vendorSlug = self::$metadata['vendor_slug'];
 
         return [
-            ':author_name' => (string) $metadata['author_name'],
-            ':author_email' => (string) $metadata['author_email'],
-            ':author_username' => (string) $metadata['author_username'],
+            ':author_name' => self::$metadata['author_name'],
+            ':author_email' => self::$metadata['author_email'],
+            ':author_username' => self::$metadata['author_username'],
             ':vendor_name' => self::headline($vendorSlug),
             ':vendor_slug' => $vendorSlug,
             ':vendor_namespace' => $vendorNamespace,
             ':package_name' => $packageName,
             ':package_slug' => $packageSlug,
-            ':package_description' => (string) $metadata['package_description'],
+            ':package_description' => self::$metadata['package_description'],
             ':class_name' => $className,
             'vendor-name/skeleton' => $vendorSlug.'/'.$packageSlug,
             'vendor-name' => $vendorSlug,
-            'Author Name' => (string) $metadata['author_name'],
-            'author@example.com' => (string) $metadata['author_email'],
+            'Author Name' => self::$metadata['author_name'],
+            'author@example.com' => self::$metadata['author_email'],
             'VendorName\\Skeleton' => $vendorNamespace.'\\'.$className,
             'VendorName' => $vendorNamespace,
             'SkeletonServiceProvider' => $className.'ServiceProvider',
@@ -676,10 +679,7 @@ class LaravelPackageSkeletonConfigurator
         ];
 
         foreach ($toSkip as $skip) {
-            if (
-                $relativePath === $skip ||
-                str_starts_with($relativePath, $skip.'/')
-            ) {
+            if ($relativePath === $skip || str_starts_with($relativePath, $skip.'/')) {
                 return true;
             }
         }
@@ -692,8 +692,8 @@ class LaravelPackageSkeletonConfigurator
      */
     private static function renamePackageFiles(array $metadata): void
     {
-        $className = (string) $metadata['class_name'];
-        $packageSlug = (string) $metadata['package_slug'];
+        $className = $metadata['class_name'];
+        $packageSlug = $metadata['package_slug'];
         $tableName = self::snake($packageSlug).'_placeholder';
 
         self::renamePath(
@@ -728,14 +728,14 @@ class LaravelPackageSkeletonConfigurator
         $migrationPaths = glob(self::$rootDir.'/database/migrations/*create_skeleton_placeholder_table.php') ?: [];
 
         foreach ($migrationPaths as $migration) {
-            $destination =
-                dirname($migration).
-                '/'.
+            $destination = implode('/', [
+                dirname($migration),
                 str_replace(
                     'create_skeleton_placeholder_table',
                     'create_'.$tableName.'_table',
                     basename($migration),
-                );
+                ),
+            ]);
             rename($migration, $destination);
             self::trackRemoved($migration);
             self::trackModified($destination);
@@ -746,7 +746,7 @@ class LaravelPackageSkeletonConfigurator
      * @param  array<string, mixed>  $metadata
      * @param  list<string>  $selectedFeatures
      */
-    private static function updateComposerJson(array $metadata, array $selectedFeatures): void
+    private static function updateComposerJson(array $selectedFeatures): void
     {
         $path = self::$rootDir.'/composer.json';
         $composer = json_decode(
@@ -755,29 +755,25 @@ class LaravelPackageSkeletonConfigurator
             flags: JSON_THROW_ON_ERROR,
         );
         $namespace = implode('\\', [
-            $metadata['vendor_namespace'],
-            $metadata['class_name'],
+            self::$metadata['vendor_namespace'],
+            self::$metadata['class_name'],
         ]).'\\';
 
         $composer['name'] = implode('/', [
-            $metadata['vendor_slug'],
-            $metadata['package_slug'],
+            self::$metadata['vendor_slug'],
+            self::$metadata['package_slug'],
         ]);
-        $composer['description'] = (string) $metadata['package_description'];
+        $composer['description'] = self::$metadata['package_description'];
         $composer['keywords'] = array_values(
             array_unique([
-                (string) $metadata['vendor_slug'],
+                self::$metadata['vendor_slug'],
                 'laravel',
-                (string) $metadata['package_slug'],
+                self::$metadata['package_slug'],
             ]),
         );
-        $composer['homepage'] =
-            'https://github.com/'.
-            (string) $metadata['vendor_slug'].
-            '/'.
-            (string) $metadata['package_slug'];
-        $composer['authors'][0]['name'] = (string) $metadata['author_name'];
-        $composer['authors'][0]['email'] = (string) $metadata['author_email'];
+        $composer['homepage'] = sprintf('https://github/com/%s/%s', self::$metadata['vendor_slug'], self::$metadata['package_slug']);
+        $composer['authors'][0]['name'] = self::$metadata['author_name'];
+        $composer['authors'][0]['email'] = self::$metadata['author_email'];
         $composer['scripts']['clear'] = [
             '@php vendor/bin/testbench package:purge-skeleton --ansi',
         ];
@@ -796,7 +792,7 @@ class LaravelPackageSkeletonConfigurator
         $composer['extra']['laravel']['providers'] = [
             rtrim($namespace, '\\').
                 '\\'.
-                (string) $metadata['class_name'].
+                self::$metadata['class_name'].
                 'ServiceProvider',
         ];
 
@@ -804,9 +800,9 @@ class LaravelPackageSkeletonConfigurator
             unset($composer['extra']['laravel']['aliases']);
         } else {
             $composer['extra']['laravel']['aliases'] = [
-                (string) $metadata['class_name'] => rtrim($namespace, '\\').
+                self::$metadata['class_name'] => rtrim($namespace, '\\').
                     '\\Facades\\'.
-                    (string) $metadata['class_name'],
+                    self::$metadata['class_name'],
             ];
         }
 
@@ -821,21 +817,13 @@ class LaravelPackageSkeletonConfigurator
             json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).
                 PHP_EOL,
         );
+
         self::trackModified($path);
     }
 
-    /**
-     * @param  array<string, mixed>  $metadata
-     */
-    private static function removeFeature(
-        string $feature,
-        array $metadata,
-    ): void {
-        $provider =
-            self::$rootDir.
-            '/src/'.
-            (string) $metadata['class_name'].
-            'ServiceProvider.php';
+    private static function removeFeature(string $feature): void
+    {
+        $provider = sprintf('%s/src/%sServiceProvider.php', self::$rootDir, self::$metadata['class_name']);
         $readme = self::$rootDir.'/README.md';
         $docsConfig = self::$rootDir.'/docs/.vitepress/config.ts';
         $docsIndex = self::$rootDir.'/docs/index.md';
@@ -1356,19 +1344,16 @@ class LaravelPackageSkeletonConfigurator
     }
 
     /**
-     * @param  array<string, mixed>  $metadata
      * @param  array<string, mixed>  $github
      * @return array<string, mixed>
      */
-    private static function createGitHubRepository(
-        array $metadata,
-        array $github,
-    ): array {
+    private static function createGitHubRepository(array $github): array
+    {
         $visibility = match ($github['visibility'] ?? '') {
             'public' => 'public',
             default => 'private',
         };
-        $repository = "{$metadata['vendor_slug']}/{$metadata['package_slug']}";
+        $repository = self::$metadata['vendor_slug'].'/'.self::$metadata['package_slug'];
         $commands = [];
         $runner = $github['runner'] ?? null;
         $configurePath = self::$rootDir.'/configure.php';
@@ -1386,10 +1371,7 @@ class LaravelPackageSkeletonConfigurator
         ];
         $insideGitCommand = ['git', 'rev-parse', '--is-inside-work-tree'];
         $commands[] = $insideGitCommand;
-        $insideGitResult = self::runGitHubCommand(
-            $insideGitCommand,
-            $runner,
-        );
+        $insideGitResult = self::runGitHubCommand($insideGitCommand, $runner);
 
         if (! ($insideGitResult['success'] ?? false)) {
             $initCommand = ['git', 'init'];
@@ -1433,9 +1415,9 @@ class LaravelPackageSkeletonConfigurator
             [
                 'git',
                 '-c',
-                'user.name='.(string) $metadata['author_name'],
+                'user.name='.self::$metadata['author_name'],
                 '-c',
-                'user.email='.(string) $metadata['author_email'],
+                'user.email='.self::$metadata['author_email'],
                 'commit',
                 '-m',
                 'Initial commit',
@@ -1520,8 +1502,7 @@ class LaravelPackageSkeletonConfigurator
             return ['success' => false, 'output' => 'Unable to start process.'];
         }
 
-        $output =
-            stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
+        $output = stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
         fclose($pipes[1]);
         fclose($pipes[2]);
 
@@ -1533,17 +1514,16 @@ class LaravelPackageSkeletonConfigurator
 
     private static function commandExists(string $command): bool
     {
-        $check = PHP_OS_FAMILY === 'Windows' ? 'where' : 'command -v';
+        [$check, $devnull] = match (PHP_OS_FAMILY) {
+            'Windows' => ['where', 'NUL'],
+            default => ['command -v', '/dev/null'],
+        };
 
-        return trim(
-            (string) shell_exec(
-                $check.
-                    ' '.
-                    escapeshellarg($command).
-                    ' 2> '.
-                    (PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null'),
-            ),
-        ) !== '';
+        $result = shell_exec(
+            sprintf('%s %s 2> %s', $check, escapeshellarg($command), $devnull),
+        );
+
+        return trim((string) $result) !== '';
     }
 
     private static function ghIsAuthenticated(): bool
@@ -1567,20 +1547,17 @@ class LaravelPackageSkeletonConfigurator
     private static function defaults(): array
     {
         $directoryName = basename(self::$rootDir);
-        $packageSlug = self::slug(
-            $directoryName === 'package-skeleton'
-                ? 'my-package'
-                : $directoryName,
-        );
+        $packageSlug = self::slug(match ($directoryName) {
+            'package-skeleton' => 'my-package',
+            default => $directoryName,
+        });
         $className = self::studly($packageSlug);
-        $vendorName =
-            trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
+        $vendorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
         $vendorSlug = self::slug($vendorName) ?: 'vendor-name';
 
         return [
             'author_name' => $vendorName,
-            'author_email' => trim((string) shell_exec('git config user.email')) ?:
-                'author@example.com',
+            'author_email' => trim((string) shell_exec('git config user.email')) ?: 'author@example.com',
             'author_username' => $vendorSlug,
             'vendor_slug' => $vendorSlug,
             'vendor_namespace' => self::studly($vendorSlug),
@@ -1620,17 +1597,19 @@ class LaravelPackageSkeletonConfigurator
 
     private static function trackModified(string $path): void
     {
-        self::$summary['modified_files'][] = self::relativePath($path);
-        self::$summary['modified_files'] = array_values(
-            array_unique(self::$summary['modified_files']),
-        );
+        self::addToSummaryByKey('modified_files', self::relativePath($path));
     }
 
     private static function trackRemoved(string $path): void
     {
-        self::$summary['removed_paths'][] = self::relativePath($path);
-        self::$summary['removed_paths'] = array_values(
-            array_unique(self::$summary['removed_paths']),
+        self::addToSummaryByKey('removed_paths', self::relativePath($path));
+    }
+
+    protected static function addToSummaryByKey(string $key, string $value): void
+    {
+        self::$summary[$key][] = $value;
+        self::$summary[$key] = array_values(
+            array_unique(self::$summary[$key]),
         );
     }
 
