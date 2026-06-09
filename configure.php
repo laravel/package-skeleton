@@ -134,6 +134,8 @@ class LaravelPackageSkeletonConfigurator
 
     private static function runNonInteractive(array $defaults): int
     {
+        self::$metadata = $defaults;
+
         $result = self::configure([
             'metadata' => $defaults,
             'features' => self::featureKeys(),
@@ -513,7 +515,7 @@ class LaravelPackageSkeletonConfigurator
         }
 
         foreach (['vendor_namespace', 'class_name'] as $key) {
-            if (isset($metadata[$key]) && ! self::isPhpIdentifier(self::$metadata[$key])) {
+            if (isset(self::$metadata[$key]) && ! self::isPhpIdentifier(self::$metadata[$key])) {
                 $errors[] = self::fieldLabel($key).' must be a valid PHP identifier.';
             }
         }
@@ -763,7 +765,7 @@ class LaravelPackageSkeletonConfigurator
                 self::$metadata['package_slug'],
             ]),
         );
-        $composer['homepage'] = sprintf('https://github/com/%s/%s', self::$metadata['vendor_slug'], self::$metadata['package_slug']);
+        $composer['homepage'] = sprintf('https://github.com/%s/%s', self::$metadata['vendor_slug'], self::$metadata['package_slug']);
         $composer['authors'][0]['name'] = self::$metadata['author_name'];
         $composer['authors'][0]['email'] = self::$metadata['author_email'];
         $composer['scripts']['clear'] = [
