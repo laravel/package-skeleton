@@ -372,7 +372,9 @@ class LaravelPackageSkeletonConfigurator
             }
         }
 
-        self::removePath('configure.php');
+        if (! self::isGithubMode('create')) {
+            self::removePath('configure.php');
+        }
 
         $dumpAutoloadResult = self::runCommand(['composer', 'dump-autoload', '--quiet']);
 
@@ -1403,6 +1405,8 @@ class LaravelPackageSkeletonConfigurator
                 'created_repositories' => [],
             ];
         }
+
+        self::removePath('configure.php');
 
         $gitCommands = [
             ['git', 'add', '--all'],
