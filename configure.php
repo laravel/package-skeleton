@@ -208,11 +208,14 @@ class LaravelPackageSkeletonConfigurator
         return array_values(
             array_filter(
                 self::featureKeys(),
-                fn (string $feature): bool => ! self::input()->getOption(
-                    'no-'.str_replace('_', '-', $feature),
-                ),
+                fn (string $feature): bool => ! self::input()->getOption(self::keyToOption($feature)),
             ),
         );
+    }
+
+    private static function keyToOption(string $key): string
+    {
+        return 'no-'.str_replace('_', '-', $key);
     }
 
     /** @param  array<string, mixed>  $payload */
@@ -1508,7 +1511,7 @@ class LaravelPackageSkeletonConfigurator
     {
         $featureOptions = array_map(
             fn (string $key) => new InputOption(
-                'no-'.str_replace('_', '-', $key),
+                self::keyToOption($key),
                 null,
                 InputOption::VALUE_NONE,
                 sprintf('Disable the %s feature', self::feature($key)),
