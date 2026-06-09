@@ -3,6 +3,8 @@
 
 declare(strict_types=1);
 
+use Laravel\Chisel\Chisel;
+
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
@@ -25,6 +27,8 @@ class LaravelPackageSkeletonConfigurator
 
     private static ?string $rootDir = null;
 
+    private static ?Chisel $chisel = null;
+
     /**
      * @var array{'metadata': array<string, mixed>, 'selected_features': list<string>, 'selected_tools': list<string>, 'removed_paths': list<string>, 'modified_files': list<string>, 'github': array<string, mixed>, 'manual_steps': list<string>}
      */
@@ -46,23 +50,27 @@ class LaravelPackageSkeletonConfigurator
             require_once $autoload;
         }
 
+        if (! self::dependenciesAreInstalled()) {
+            fwrite(
+                STDERR,
+                'Composer dependencies are not installed. Run `composer install` before `php ./configure.php`.'.PHP_EOL,
+            );
+
+            return self::FAILURE;
+        }
+
         $defaults = self::defaults();
 
         if (self::isNonInteractive()) {
             return self::runNonInteractive($defaults);
         }
 
-        if (! function_exists("Laravel\Prompts\intro")) {
-            fwrite(
-                STDERR,
-                'Laravel Prompts is not installed. Run `composer install` before `php ./configure.php`.'.
-                    PHP_EOL,
-            );
-
-            return self::FAILURE;
-        }
-
         return self::runInteractive($defaults);
+    }
+
+    private static function dependenciesAreInstalled(): bool
+    {
+        return function_exists('Laravel\Prompts\intro') && class_exists(Chisel::class);
     }
 
     private static function runInteractive(array $defaults): int
@@ -338,6 +346,7 @@ class LaravelPackageSkeletonConfigurator
             self::removeTool($tool);
         }
 
+        self::removeChiselMarkers($selectedFeatures);
         self::copyAgentsMarkdownToClaude();
         self::cleanupEmptyDirectories();
 
@@ -573,12 +582,7 @@ class LaravelPackageSkeletonConfigurator
                 $contents,
             ) ?? $contents;
 
-            if ($updated === $contents) {
-                continue;
-            }
-
-            file_put_contents($file, $updated);
-            self::trackModified($file);
+            self::replaceFileContents($file, $contents, $updated);
         }
     }
 
@@ -799,7 +803,10 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        unset($composer['require-dev']['laravel/prompts']);
+        unset(
+            $composer['require-dev']['laravel/chisel'],
+            $composer['require-dev']['laravel/prompts'],
+        );
 
         if (($composer['extra']['laravel'] ?? []) === []) {
             unset($composer['extra']['laravel']);
@@ -825,14 +832,7 @@ class LaravelPackageSkeletonConfigurator
         $map = [
             'config' => fn () => [
                 self::removePath('config'),
-                self::removeProviderCallAndMethod(
-                    $provider,
-                    'bootConfig',
-                ),
-                self::removeProviderLine(
-                    $provider,
-                    'mergeConfigFrom',
-                ),
+                self::removeChiselSection($provider, 'config'),
                 self::removeMarkdownSection(
                     $readme,
                     'Publishing the Configuration File',
@@ -859,10 +859,7 @@ class LaravelPackageSkeletonConfigurator
             ],
             'routes' => fn () => [
                 self::removePath('routes'),
-                self::removeProviderCallAndMethod(
-                    $provider,
-                    'bootRoutes',
-                ),
+                self::removeChiselSection($provider, 'routes'),
                 self::removeLinesContaining(
                     $readme,
                     ['route', 'Route'],
@@ -874,10 +871,7 @@ class LaravelPackageSkeletonConfigurator
             ],
             'views' => fn () => [
                 self::removePath('resources/views'),
-                self::removeProviderCallAndMethod(
-                    $provider,
-                    'bootViews',
-                ),
+                self::removeChiselSection($provider, 'views'),
                 self::removeMarkdownSection(
                     $readme,
                     'Publishing the Views',
@@ -889,10 +883,7 @@ class LaravelPackageSkeletonConfigurator
             ],
             'translations' => fn () => [
                 self::removePath('lang'),
-                self::removeProviderCallAndMethod(
-                    $provider,
-                    'bootTranslations',
-                ),
+                self::removeChiselSection($provider, 'translations'),
                 self::removeMarkdownSection(
                     $readme,
                     'Publishing the Translations',
@@ -904,10 +895,7 @@ class LaravelPackageSkeletonConfigurator
             ],
             'migrations' => fn () => [
                 self::removePath('database/migrations'),
-                self::removeProviderCallAndMethod(
-                    $provider,
-                    'bootMigrations',
-                ),
+                self::removeChiselSection($provider, 'migrations'),
                 self::removeMarkdownSection(
                     $readme,
                     'Publishing and Running the Migrations',
@@ -927,10 +915,7 @@ class LaravelPackageSkeletonConfigurator
             ],
             'assets' => fn () => [
                 self::removePath('public'),
-                self::removeProviderCallAndMethod(
-                    $provider,
-                    'bootAssets',
-                ),
+                self::removeChiselSection($provider, 'assets'),
                 self::removeMarkdownSection(
                     $readme,
                     'Publishing the Public Assets',
@@ -942,14 +927,7 @@ class LaravelPackageSkeletonConfigurator
             ],
             'commands' => fn () => [
                 self::removePath('src/Console/Commands'),
-                self::removeProviderCallAndMethod(
-                    $provider,
-                    'bootCommands',
-                ),
-                self::removeProviderLine(
-                    $provider,
-                    'Command;',
-                ),
+                self::removeChiselSection($provider, 'commands'),
                 self::removeLinesContaining(
                     $readme,
                     ['command', 'Command'],
@@ -1095,72 +1073,58 @@ class LaravelPackageSkeletonConfigurator
         }
     }
 
-    private static function removeProviderCallAndMethod(string $path, string $method): void
-    {
-        if (! file_exists($path)) {
-            return;
-        }
-
-        $contents = (string) file_get_contents($path);
-        $updated =
-            preg_replace(
-                '/^\s*\$this->'.$method."\(\);\R/m",
-                '',
-                $contents,
-            ) ?? $contents;
-        $updated =
-            preg_replace(
-                '/\n\s*private function '.
-                    $method.
-                    '\(\): void\n\s*\{(?:[^{}]*|\{[^{}]*\})*\}\n/s',
-                "\n",
-                $updated,
-            ) ?? $updated;
-        $updated = preg_replace("/\n{3,}/", "\n\n", $updated) ?? $updated;
-
-        if ($updated !== $contents) {
-            file_put_contents($path, $updated);
-            self::trackModified($path);
-        }
-    }
-
-    private static function removeProviderLine(string $path, string $needle): void
-    {
-        if (! file_exists($path)) {
-            return;
-        }
-
-        $contents = (string) file_get_contents($path);
-        $lines = explode("\n", $contents);
-        $filtered = array_values(
-            array_filter(
-                $lines,
-                fn (string $line): bool => ! str_contains($line, $needle),
-            ),
-        );
-        $updated = implode("\n", $filtered);
-
-        if ($updated !== $contents) {
-            file_put_contents($path, $updated);
-            self::trackModified($path);
-        }
-    }
-
     private static function removeMarkdownSection(string $path, string $heading): void
     {
-        if (! file_exists($path)) {
+        $absolutePath = self::absolutePath($path);
+
+        if (! file_exists($absolutePath)) {
             return;
         }
 
-        $contents = (string) file_get_contents($path);
+        $contents = (string) file_get_contents($absolutePath);
         $pattern =
             '/\n##+ '.preg_quote($heading, '/').'\n.*?(?=\n##+ |\z)/s';
         $updated = preg_replace($pattern, '', $contents) ?? $contents;
 
-        if ($updated !== $contents) {
-            file_put_contents($path, $updated);
-            self::trackModified($path);
+        self::replaceFileContents($absolutePath, $contents, $updated);
+    }
+
+    /**
+     * @param  list<string>  $selectedFeatures
+     */
+    private static function removeChiselMarkers(array $selectedFeatures): void
+    {
+        $provider = sprintf('%s/src/%sServiceProvider.php', self::$rootDir, self::$metadata['class_name']);
+        $providerSections = array_diff(self::featureKeys(), [
+            'facade',
+            'boost_skill',
+        ]);
+
+        foreach ($providerSections as $section) {
+            if (in_array($section, $selectedFeatures, true)) {
+                self::removeChiselSectionMarkers($provider, $section);
+            }
         }
+    }
+
+    private static function removeChiselSection(string $path, string $tag): void
+    {
+        self::rewriteWithChisel(
+            $path,
+            fn (string $relativePath) => self::chisel()
+                ->file($relativePath)
+                ->removeSection($tag),
+        );
+    }
+
+    private static function removeChiselSectionMarkers(string $path, string $tag): void
+    {
+        self::rewriteWithChisel(
+            $path,
+            fn (string $relativePath) => self::chisel()
+                ->file($relativePath)
+                ->removeSectionMarkers($tag),
+        );
     }
 
     /**
@@ -1168,28 +1132,53 @@ class LaravelPackageSkeletonConfigurator
      */
     private static function removeLinesContaining(string $path, array $needles): void
     {
-        if (! file_exists($path)) {
+        $absolutePath = self::absolutePath($path);
+
+        if (! file_exists($absolutePath)) {
             return;
         }
 
-        $contents = (string) file_get_contents($path);
-        $lines = explode("\n", $contents);
-        $filtered = array_values(
-            array_filter($lines, function (string $line) use ($needles): bool {
-                foreach ($needles as $needle) {
-                    if (str_contains($line, $needle)) {
-                        return false;
-                    }
-                }
+        $contents = (string) file_get_contents($absolutePath);
+        $relativePath = self::relativePath($absolutePath);
 
-                return true;
-            }),
-        );
-        $updated = implode("\n", $filtered);
+        foreach ($needles as $needle) {
+            self::chisel()->file($relativePath)->removeLinesContaining($needle);
+        }
+
+        $updated = (string) file_get_contents($absolutePath);
 
         if ($updated !== $contents) {
-            file_put_contents($path, $updated);
-            self::trackModified($path);
+            self::trackModified($absolutePath);
+        }
+    }
+
+    private static function replaceFileContents(string $path, string $contents, string $updated): void
+    {
+        if ($updated === $contents) {
+            return;
+        }
+
+        self::chisel()
+            ->file(self::relativePath(self::absolutePath($path)))
+            ->replace($contents, $updated);
+
+        self::trackModified($path);
+    }
+
+    private static function rewriteWithChisel(string $path, callable $callback): void
+    {
+        $absolutePath = self::absolutePath($path);
+
+        if (! file_exists($absolutePath)) {
+            return;
+        }
+
+        $contents = (string) file_get_contents($absolutePath);
+
+        $callback(self::relativePath($absolutePath));
+
+        if ((string) file_get_contents($absolutePath) !== $contents) {
+            self::trackModified($absolutePath);
         }
     }
 
@@ -1201,27 +1190,42 @@ class LaravelPackageSkeletonConfigurator
             return;
         }
 
-        if (is_dir($path)) {
-            $iterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator(
-                    $path,
-                    RecursiveDirectoryIterator::SKIP_DOTS,
-                ),
-                RecursiveIteratorIterator::CHILD_FIRST,
-            );
+        if (! is_dir($path)) {
+            self::chisel()->file($relativePath)->delete();
+            self::$summary['removed_paths'][] = $relativePath;
 
-            foreach ($iterator as $item) {
-                $item->isDir()
-                    ? rmdir($item->getPathname())
-                    : unlink($item->getPathname());
-            }
-
-            rmdir($path);
-        } else {
-            unlink($path);
+            return;
         }
 
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(
+                $path,
+                RecursiveDirectoryIterator::SKIP_DOTS,
+            ),
+            RecursiveIteratorIterator::CHILD_FIRST,
+        );
+
+        foreach ($iterator as $item) {
+            $item->isDir()
+                ? rmdir($item->getPathname())
+                : unlink($item->getPathname());
+        }
+
+        rmdir($path);
+
         self::$summary['removed_paths'][] = $relativePath;
+    }
+
+    private static function chisel(): Chisel
+    {
+        return self::$chisel ??= Chisel::in(self::$rootDir);
+    }
+
+    private static function absolutePath(string $path): string
+    {
+        return str_starts_with($path, self::$rootDir.'/')
+            ? $path
+            : self::$rootDir.'/'.$path;
     }
 
     private static function renamePath(string $from, string $to): void
