@@ -154,7 +154,7 @@ class LaravelPackageSkeletonConfigurator
         self::$metadata = $defaults;
 
         $result = self::configure([
-            'features' => self::featureKeys(),
+            'features' => self::nonInteractiveFeatures(),
             'tools' => self::toolKeys(),
         ]);
 
@@ -178,6 +178,28 @@ class LaravelPackageSkeletonConfigurator
             'github' => $result['github'] ?? self::defaultGithubResult(),
             'summary' => $result['summary'] ?? [],
         ];
+    }
+
+    /** @return list<string> */
+    private static function nonInteractiveFeatures(): array
+    {
+        $features = self::featureKeys();
+
+        return array_values(
+            array_filter(
+                $features,
+                fn (string $feature): bool => ! in_array(
+                    self::featureDisableFlag($feature),
+                    $_SERVER['argv'] ?? [],
+                    true,
+                ),
+            ),
+        );
+    }
+
+    private static function featureDisableFlag(string $feature): string
+    {
+        return '--no-'.str_replace('_', '-', $feature);
     }
 
     /** @param  array<string, mixed>  $payload */
