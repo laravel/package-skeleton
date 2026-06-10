@@ -43,7 +43,7 @@ class LaravelPackageSkeletonConfigurator
     private static array $summary = [];
 
     /**
-     * @var array{vendor_slug: string, package_slug: string, package_name_human: string}
+     * @var array{author_name: string, author_email: string, package_name: string, package_name_human: string, package_description: string, vendor_namespace: string, class_name: string}
      */
     private static array $metadata = [];
 
@@ -139,7 +139,7 @@ class LaravelPackageSkeletonConfigurator
         self::setupGithubConfig();
 
         if (self::isGithubMode('create')) {
-            info(sprintf('GitHub URL: https://github.com/%s/%s', self::$metadata['vendor_slug'], self::$metadata['package_slug']));
+            info('GitHub URL: https://github.com/'.self::$metadata['package_name']);
         }
 
         $result = spin(
@@ -666,11 +666,6 @@ class LaravelPackageSkeletonConfigurator
         ];
     }
 
-    private static function hasMetadata(string $key): bool
-    {
-        return isset(self::$metadata[$key]) && trim((string) self::$metadata[$key]) !== '';
-    }
-
     /**
      * @param  list<string>  $selectedTools
      * @return list<string>
@@ -747,14 +742,13 @@ class LaravelPackageSkeletonConfigurator
     {
         $vendorNamespace = self::$metadata['vendor_namespace'];
         $className = self::$metadata['class_name'];
-        $packageSlug = self::$metadata['package_slug'];
         $packageName = self::$metadata['package_name_human'];
-        $vendorSlug = self::$metadata['vendor_slug'];
+        [$packageSlug, $vendorSlug] = explode('/', self::$metadata['package_name']);
 
         return [
             ':author_name' => self::$metadata['author_name'],
             ':author_email' => self::$metadata['author_email'],
-            ':author_username' => self::$metadata['author_username'],
+            ':author_username' => $vendorSlug,
             ':vendor_name' => self::headline($vendorSlug),
             ':vendor_slug' => $vendorSlug,
             ':vendor_namespace' => $vendorNamespace,
@@ -845,7 +839,7 @@ class LaravelPackageSkeletonConfigurator
     private static function renamePackageFiles(): void
     {
         $className = self::$metadata['class_name'];
-        $packageSlug = self::$metadata['package_slug'];
+        $packageSlug = explode('/', self::$metadata['package_name'])[1];
         $tableName = self::snake($packageSlug).'_placeholder';
 
         $toRename = [
@@ -895,25 +889,28 @@ class LaravelPackageSkeletonConfigurator
             self::$metadata['class_name'],
         ]).'\\';
 
-        $composer['name'] = implode('/', [
-            self::$metadata['vendor_slug'],
-            self::$metadata['package_slug'],
-        ]);
+        $composer['name'] = self::$metadata['package_name'];
         $composer['description'] = self::$metadata['package_description'];
         $composer['keywords'] = array_values(
             array_unique([
-                self::$metadata['vendor_slug'],
                 'laravel',
-                self::$metadata['package_slug'],
+                ...explode('/', self::$metadata['package_name']),
             ]),
         );
-        $composer['homepage'] = sprintf('https://github.com/%s/%s', self::$metadata['vendor_slug'], self::$metadata['package_slug']);
-        $composer['authors'][0]['name'] = self::$metadata['author_name'];
-        $composer['authors'][0]['email'] = self::$metadata['author_email'];
+        $composer['homepage'] = 'https://github.com/'.self::$metadata['package_name'];
+        $composer['authors'] = [
+            [
+                'name' => self::$metadata['author_name'],
+                'email' => self::$metadata['author_email'],
+                'role' => 'Developer',
+            ],
+        ];
         $composer['scripts']['clear'] = [
             '@php vendor/bin/testbench package:purge-skeleton --ansi',
         ];
+
         unset($composer['scripts']['post-install-cmd']);
+
         $composer['autoload']['psr-4'] = [$namespace => 'src/'];
         $composer['autoload-dev']['psr-4'] =
             [$namespace.'Tests\\' => 'tests/'] +
@@ -1248,7 +1245,7 @@ class LaravelPackageSkeletonConfigurator
             'public' => 'public',
             default => 'private',
         };
-        $repository = self::$metadata['vendor_slug'].'/'.self::$metadata['package_slug'];
+        $repository = self::$metadata['package_name'];
         $commands = [];
         $runner = $github['runner'] ?? null;
         $configurePath = self::$rootDir.'/configure.php';
