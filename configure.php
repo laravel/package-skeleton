@@ -1314,7 +1314,7 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        // self::removePath('configure.php');
+        self::removePath('configure.php');
 
         $gitCommands = [
             ['git', 'add', '--all'],
