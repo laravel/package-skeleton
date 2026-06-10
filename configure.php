@@ -59,7 +59,7 @@ class LaravelPackageSkeletonConfigurator
         }
 
         if (! self::dependenciesAreInstalled()) {
-            $message = 'Composer dependencies are not installed. Run `composer install` before `php ./configure.php`.';
+            $message = 'Composer dependencies are not installed. Run `composer install` before `php configure.php`.';
 
             if (self::hasNonInteractiveFlags()) {
                 self::writeJson([
