@@ -6,7 +6,7 @@ This repository is a Laravel package skeleton for building new packages. Preserv
 
 - Use Laravel-native package APIs and the existing service provider shape before adding abstractions.
 - Keep `:author_name`, `:package_name`, `:vendor_slug`, and `:package_slug` placeholders intact until the package is configured.
-- Treat `configure.php` as a one-time bootstrap script: package authors run `composer install` and then `php ./configure.php` to replace placeholders, prune disabled features/tools, optionally create a GitHub repository, and delete the script after success.
+- Treat `configure.php` as a one-time bootstrap script: package authors run `composer install` and then `php configure.php` to replace placeholders, prune disabled features/tools, optionally create a GitHub repository, and delete the script after success.
 - When changing package capabilities or maintenance tooling in the skeleton, keep the configure feature/tool mappings in sync with files, Composer metadata, `README_PACKAGE.md`, `AGENTS_PACKAGE.md`, AI guidance, `AGENTS.md` as the skeleton guidance source, `AGENTS_PACKAGE.md` as the package guidance source, and `.agents/skills` as the canonical local skills source. `configure.php` generates package `README.md`, `AGENTS.md`, `CLAUDE.md`, and `.claude/skills` from them.
 - Do not add runtime dependencies, generated files, or extra scaffold unless the package feature needs them.
 - Keep temporary phase scaffold tests out of the final shipped test suite.

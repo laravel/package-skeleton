@@ -4,7 +4,7 @@ This repository is a starter for building Laravel packages. It includes a one-ti
 
 ## What This Skeleton Provides
 
-- Interactive one-time package configuration with `php ./configure.php`.
+- Interactive one-time package configuration with `php configure.php`.
 - Laravel-native service provider wiring for config, routes, views, translations, migrations, assets, commands, and facades.
 - Pest, Larastan, Pint, Testbench, type coverage, and workbench scripts ready for package development.
 - Optional maintenance tooling for Dependabot update pull requests, changelog automation, funding, security policy, issue templates, and VitePress documentation.
@@ -26,9 +26,9 @@ cd my-package
 4. Run `composer build` to rebuild the bundled workbench app under `workbench/`.
 5. Run `composer serve` to boot the workbench app at `http://localhost:8000` and test your package end-to-end.
 
-If you prefer to run the steps manually, run `composer install` first and then `php ./configure.php`.
+If you prefer to run the steps manually, run `composer install` first and then `php configure.php`.
 
-For non-interactive configuration, pass `--no-[feature]` flags to remove features you do not want, such as `php ./configure.php --no-config --no-routes`.
+For non-interactive configuration, pass `--no-[feature]` flags to remove features you do not want, such as `php configure.php --no-config --no-routes`.
 
 During configuration, `README_PACKAGE.md` and `AGENTS_PACKAGE.md` are customized and moved to `README.md` and `AGENTS.md`, replacing skeleton-facing files in the generated package.
 
