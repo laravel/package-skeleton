@@ -159,10 +159,22 @@ class LaravelPackageSkeletonConfigurator
         }
 
         if (($result['summary']['manual_steps'] ?? []) !== []) {
-            info('Manual follow-up steps:');
+            info('Next steps:');
 
             foreach ($result['summary']['manual_steps'] as $manualStep) {
-                info("· {$manualStep}");
+                $lines = wordwrap($manualStep);
+                $lines = explode(PHP_EOL, $lines);
+                $finalLines = [];
+
+                foreach ($lines as $index => $line) {
+                    if ($index === 0) {
+                        $finalLines[] = '· '.$line;
+                    } else {
+                        $finalLines[] = '  '.$line;
+                    }
+                }
+
+                info(implode(PHP_EOL, $finalLines));
             }
         }
 
