@@ -1527,6 +1527,26 @@ class LaravelPackageSkeletonConfigurator
         fwrite(STDOUT, implode(PHP_EOL, $lines).PHP_EOL);
     }
 
+    private static function ghUsername(): ?string
+    {
+        if (! self::commandExists('gh') || ! self::ghIsAuthenticated()) {
+            return null;
+        }
+
+        $result = self::runCommand(
+            ['gh', 'api', 'user', '--jq', '.login'],
+            getcwd() ?: __DIR__,
+        );
+
+        if (! $result['success']) {
+            return null;
+        }
+
+        $user = json_decode($result['output'], true);
+
+        return $user['login'] ?? null;
+    }
+
     /** @return array<string, string> */
     private static function defaults(): array
     {
@@ -1536,12 +1556,13 @@ class LaravelPackageSkeletonConfigurator
             default => $directoryName,
         });
         $className = self::studly($packageSlug);
-        $vendorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
-        $vendorSlug = self::slug($vendorName) ?: 'vendor-name';
+        $authorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
+        $authorEmail = trim((string) shell_exec('git config user.email')) ?: 'author@example.com';
+        $vendorSlug = self::ghUsername() ?: self::slug($authorName) ?: 'vendor-name';
 
         return [
-            'author_name' => $vendorName,
-            'author_email' => trim((string) shell_exec('git config user.email')) ?: 'author@example.com',
+            'author_name' => $authorName,
+            'author_email' => $authorEmail,
             'author_username' => $vendorSlug,
             'vendor_slug' => $vendorSlug,
             'vendor_namespace' => self::studly($vendorSlug),
