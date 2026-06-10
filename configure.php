@@ -117,13 +117,23 @@ class LaravelPackageSkeletonConfigurator
                 default: $default,
                 required: true,
                 hint: $field['hint'],
+                validate: $field['validate'] ?? null,
             );
-
-            self::castMetadata($key);
         }
 
-        $features = multiselect('Package Features', self::features(), self::featureKeys());
-        $tools = multiselect('Package Tools', self::tools(), self::toolKeys());
+        $features = multiselect(
+            'Package Features',
+            array_map(fn ($feature) => $feature['label'], self::features()),
+            self::featureKeys(),
+            info: fn (string $key) => self::features()[$key]['description'] ?? '',
+        );
+
+        $tools = multiselect(
+            'Package Tools',
+            array_map(fn ($tool) => $tool['label'], self::tools()),
+            self::toolKeys(),
+            info: fn (string $key) => self::tools()[$key]['description'] ?? '',
+        );
 
         self::setupGithubConfig();
 
@@ -261,30 +271,119 @@ class LaravelPackageSkeletonConfigurator
         ];
     }
 
-    /** @return array<string, string> */
+    /** @return array<string, array{label: string, description?: string, remove?: callable}> */
     private static function features(): array
     {
+        $provider = sprintf('%s/src/%sServiceProvider.php', self::$rootDir, self::$metadata['class_name']);
+        $readme = self::$rootDir.'/README.md';
+        $docsConfig = self::$rootDir.'/docs/.vitepress/config.ts';
+        $docsIndex = self::$rootDir.'/docs/index.md';
+        $docsInstallation = self::$rootDir.'/docs/getting-started/installation.md';
+
         return [
-            'config' => 'Config file',
-            'routes' => 'Routes',
-            'views' => 'Views',
-            'translations' => 'Translations',
-            'migrations' => 'Migrations',
-            'assets' => 'Assets',
-            'commands' => 'Commands',
-            'facade' => 'Facade',
-            'boost_skill' => 'Boost Skill',
+            'config' => [
+                'label' => 'Config file',
+                'remove' => fn () => [
+                    self::removePath('config'),
+                    self::removeChiselSection($provider, 'config'),
+                    self::removeMarkdownSection($readme, 'Publishing the Configuration File'),
+                    self::removePath('docs/getting-started/configuration.md'),
+                    self::removeLinesContaining($docsConfig, ['Configuration']),
+                    self::removeLinesContaining($docsIndex, ['Configuration']),
+                    self::removeLinesContaining($docsInstallation, ['-config']),
+                    self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - config']),
+                ],
+            ],
+            'routes' => [
+                'label' => 'Routes',
+                'remove' => fn () => [
+                    self::removePath('routes'),
+                    self::removeChiselSection($provider, 'routes'),
+                    self::removeLinesContaining($readme, ['route', 'Route']),
+                    self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - routes']),
+                ],
+            ],
+            'views' => [
+                'label' => 'Views',
+                'remove' => fn () => [
+                    self::removePath('resources/views'),
+                    self::removeChiselSection($provider, 'views'),
+                    self::removeMarkdownSection($readme, 'Publishing the Views'),
+                    self::removeLinesContaining($docsInstallation, ['-views']),
+                ],
+            ],
+            'translations' => [
+                'label' => 'Translations',
+                'remove' => fn () => [
+                    self::removePath('lang'),
+                    self::removeChiselSection($provider, 'translations'),
+                    self::removeMarkdownSection($readme, 'Publishing the Translations'),
+                    self::removeLinesContaining($docsInstallation, ['-lang']),
+                ],
+            ],
+            'migrations' => [
+                'label' => 'Migrations',
+                'remove' => fn () => [
+                    self::removePath('database/migrations'),
+                    self::removeChiselSection($provider, 'migrations'),
+                    self::removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
+                    self::removeLinesContaining($docsInstallation, ['-migrations']),
+                    self::removeMarkdownSection($docsInstallation, 'Running Migrations'),
+                    self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - database']),
+                ],
+            ],
+            'assets' => [
+                'label' => 'Assets',
+                'remove' => fn () => [
+                    self::removePath('public'),
+                    self::removeChiselSection($provider, 'assets'),
+                    self::removeMarkdownSection($readme, 'Publishing the Public Assets'),
+                    self::removeLinesContaining($docsInstallation, ['-assets']),
+                ],
+            ],
+            'commands' => [
+                'label' => 'Commands',
+                'remove' => fn () => [
+                    self::removePath('src/Console/Commands'),
+                    self::removeChiselSection($provider, 'commands'),
+                    self::removeLinesContaining($readme, ['command', 'Command']),
+                ],
+            ],
+            'facade' => [
+                'label' => 'Facade',
+                'remove' => fn () => [
+                    self::removePath('src/Facades'),
+                    self::removeLinesContaining($readme, ['facade', 'Facade']),
+                ],
+            ],
+            'boost_skill' => [
+                'label' => 'Boost Skill',
+                'description' => 'Add a package skill for Laravel Boost',
+                'remove' => fn () => [
+                    self::removePath('resources/boost/skills'),
+                    self::removePath('.agents/skills/package-generate-skill'),
+                    self::removePath('.claude/skills/package-generate-skill'),
+                    self::removeLinesContaining($readme, ['Boost', 'boost']),
+                    self::removeLinesContaining(self::$rootDir.'/AGENTS.md', ['Boost', 'boost']),
+                ],
+            ],
         ];
     }
 
-    private static function feature(string $key): string
+    /**
+     * @return array{label: string, description?: string, remove?: callable}
+     */
+    private static function feature(string $key): array
     {
-        return self::features()[$key] ?? $key;
+        return self::features()[$key];
     }
 
-    private static function tool(string $key): string
+    /**
+     * @return array{label: string, description?: string, remove?: callable}
+     */
+    private static function tool(string $key): array
     {
-        return self::tools()[$key] ?? $key;
+        return self::tools()[$key];
     }
 
     /** @return list<string> */
@@ -293,16 +392,85 @@ class LaravelPackageSkeletonConfigurator
         return array_keys(self::features());
     }
 
-    /** @return array<string, string> */
+    /** @return array<string, array{label: string, description?: string, remove?: callable}> */
     private static function tools(): array
     {
+        $readme = self::$rootDir.'/README.md';
+        $docsConfig = self::$rootDir.'/docs/.vitepress/config.ts';
+        $docsIndex = self::$rootDir.'/docs/index.md';
+
         return [
-            'dependabot' => 'Dependabot Pull Requests',
-            'issue_template' => 'Issue Template',
-            'changelog' => 'Changelog',
-            'funding' => 'Funding',
-            'security_policy' => 'Security Policy',
-            'documentation' => 'Documentation',
+            'dependabot' => [
+                'label' => 'Dependabot Pull Requests',
+                'remove' => fn () => [
+                    self::removePath('.github/dependabot.yml'),
+                    self::removeLinesContaining($readme, ['Dependabot']),
+                    self::removeLinesContaining(self::$rootDir.'/docs/index.md', ['Dependabot']),
+                ],
+                'description' => 'Automated dependency updates',
+            ],
+            'issue_template' => [
+                'label' => 'Issue Template',
+                'remove' => fn () => self::removePath(
+                    '.github/ISSUE_TEMPLATE',
+                ),
+            ],
+            'changelog' => [
+                'label' => 'Changelog',
+                'remove' => fn () => [
+                    self::removePath('CHANGELOG.md'),
+                    self::removePath('.github/workflows/update-changelog.yml'),
+                    self::removePath('.github/release.yml'),
+                    self::removePath('docs/getting-started/changelog.md'),
+                    self::removeLinesContaining($docsConfig, ['Changelog']),
+                    self::removeLinesContaining($docsIndex, ['Changelog']),
+                    self::removeMarkdownSection($readme, 'Changelog'),
+                    self::removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
+                ],
+                'description' => 'Automated changelog generation',
+            ],
+            'funding' => [
+                'label' => 'Funding',
+                'remove' => fn () => self::removePath('.github/FUNDING.yml'),
+            ],
+            'security_policy' => [
+                'label' => 'Security Policy',
+                'remove' => fn () => [
+                    self::removePath('.github/SECURITY.md'),
+                    self::removeMarkdownSection($readme, 'Security Vulnerabilities'),
+                ],
+            ],
+            'documentation' => [
+                'label' => 'Documentation',
+                'remove' => fn () => [
+                    self::removePath('docs'),
+                    self::removePath('package.json'),
+                    self::removePath('.agents/skills/package-docs'),
+                    self::removePath('.claude/skills/package-docs'),
+                    self::removePath('.github/workflows/docs.yml'),
+                    self::removeLinesContaining($readme, [
+                        'documentation',
+                        'Documentation',
+                        'VitePress',
+                        'GitHub Pages',
+                    ]),
+                    self::removeLinesContaining(self::$rootDir.'/AGENTS.md', ['VitePress', 'docs/']),
+                    self::removeLinesContaining(self::$rootDir.'/.agents/skills/package-generate-skill/SKILL.md', ['docs/']),
+                    self::removeLinesContaining(self::$rootDir.'/.claude/skills/package-generate-skill/SKILL.md', ['docs/']),
+                    self::removeLinesContaining(self::$rootDir.'/.gitignore', [
+                        'docs/.vitepress/dist',
+                        'package-lock.json',
+                        'pnpm-lock.yaml',
+                        'bun.lock',
+                    ]),
+                    self::removeLinesContaining(self::$rootDir.'/.gitattributes', [
+                        '/docs',
+                        '/package.json',
+                        'docs/.vitepress/dist',
+                    ]),
+                ],
+                'description' => 'Docs via VitePress + GitHub Pages',
+            ],
         ];
     }
 
@@ -323,30 +491,54 @@ class LaravelPackageSkeletonConfigurator
             'author_email' => [
                 'label' => 'Author email',
                 'hint' => 'Used in composer.json package author metadata.',
-            ],
-            'vendor_slug' => [
-                'label' => 'GitHub / Packagist username',
-                'hint' => 'Use the GitHub user or organization that will own the repository and Packagist package.',
+                'validate' => function ($value) {
+                    if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
+                        return 'Must be a valid email address.';
+                    }
+
+                    return null;
+                },
             ],
             'package_name' => [
+                'label' => 'Package name',
+                'hint' => 'Used in composer.json and as the package name in Packagist.',
+                'validate' => function ($value) {
+                    if (! preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/', $value)) {
+                        return 'Package name must be in the format vendor/package.';
+                    }
+
+                    return null;
+                },
+            ],
+            'package_name_human' => [
                 'label' => 'Package name (human readable)',
                 'hint' => 'Used as the human-readable package name in README and docs.',
-            ],
-            'vendor_namespace' => [
-                'label' => 'Vendor namespace',
-                'hint' => 'Used as the top-level PHP namespace, for example VendorName\\PackageName.',
-            ],
-            'class_name' => [
-                'label' => 'Main class name',
-                'hint' => 'Used for the main class, service provider, facade, and command class names.',
-            ],
-            'package_slug' => [
-                'label' => 'Package identifier',
-                'hint' => 'Used in composer package names, publish tags, config files, routes, and URLs.',
             ],
             'package_description' => [
                 'label' => 'Package description',
                 'hint' => 'Used in composer.json, README, and documentation intro copy.',
+            ],
+            'vendor_namespace' => [
+                'label' => 'Vendor namespace',
+                'hint' => 'Used as the top-level PHP namespace, for example VendorName\\PackageName.',
+                'validate' => function ($value) {
+                    if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
+                        return 'Vendor namespace must be a valid PHP namespace.';
+                    }
+
+                    return null;
+                },
+            ],
+            'class_name' => [
+                'label' => 'Main class name',
+                'hint' => 'Used for the main class, service provider, facade, and command class names.',
+                'validate' => function ($value) {
+                    if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
+                        return 'Class name must be a valid PHP class name.';
+                    }
+
+                    return null;
+                },
             ],
         ];
     }
@@ -361,20 +553,6 @@ class LaravelPackageSkeletonConfigurator
             $options['features'] ?? self::featureKeys(),
         );
         $selectedTools = array_values($options['tools'] ?? self::toolKeys());
-
-        $errors = self::validate($selectedFeatures, $selectedTools);
-
-        if ($errors !== []) {
-            return [
-                'success' => false,
-                'errors' => $errors,
-                'github' => self::defaultGithubResult(),
-                'summary' => [],
-            ];
-        }
-
-        self::$metadata['vendor_slug'] = self::slug(self::$metadata['vendor_slug']);
-        self::$metadata['author_username'] ??= self::$metadata['vendor_slug'];
 
         $github = self::defaultGithubResult();
 
@@ -395,12 +573,16 @@ class LaravelPackageSkeletonConfigurator
         self::removePath('.agents/skills/skeleton-development');
         self::copyAgentSkillsToClaude();
 
-        foreach (array_diff(self::featureKeys(), $selectedFeatures) as $feature) {
-            self::removeFeature($feature);
+        foreach (array_diff(self::featureKeys(), $selectedFeatures) as $featureToRemove) {
+            if (isset(self::feature($featureToRemove)['remove'])) {
+                self::feature($featureToRemove)['remove']();
+            }
         }
 
-        foreach (array_diff(self::toolKeys(), $selectedTools) as $tool) {
-            self::removeTool($tool);
+        foreach (array_diff(self::toolKeys(), $selectedTools) as $toolToRemove) {
+            if (isset(self::tool($toolToRemove)['remove'])) {
+                self::tool($toolToRemove)['remove']();
+            }
         }
 
         self::removeChiselMarkers($selectedFeatures);
@@ -467,30 +649,25 @@ class LaravelPackageSkeletonConfigurator
      */
     private static function metadataDefault(string $key, array $defaults): string
     {
-        return match (true) {
-            $key === 'package_slug' && self::hasMetadata('package_name') => self::slug(self::$metadata['package_name']),
-            $key === 'class_name' && self::hasMetadata('package_name') => self::studly(self::slug(self::$metadata['package_name'])),
-            default => $defaults[$key],
-        };
-    }
+        if ($key === 'package_name_human' && self::hasMetadata('package_name')) {
+            $packageName = explode('/', self::$metadata['package_name'])[1];
 
-    private static function castMetadata(string $key): void
-    {
-        $stringMetadata = [
-            'author_name',
-            'author_email',
-            'author_username',
-            'vendor_slug',
-            'vendor_namespace',
-            'package_name',
-            'package_slug',
-            'class_name',
-            'package_description',
-        ];
-
-        if (in_array($key, $stringMetadata) && isset(self::$metadata[$key])) {
-            self::$metadata[$key] = (string) self::$metadata[$key];
+            return ucwords(str_replace('-', ' ', $packageName));
         }
+
+        if ($key === 'package_slug' && self::hasMetadata('package_name_human')) {
+            return self::slug(self::$metadata['package_name_human']);
+        }
+
+        if ($key === 'class_name' && self::hasMetadata('package_name_human')) {
+            return self::studly(self::slug(self::$metadata['package_name_human']));
+        }
+
+        if ($key === 'vendor_namespace' && self::hasMetadata('package_name_human')) {
+            return self::studly(self::slug(self::$metadata['package_name_human']));
+        }
+
+        return $defaults[$key] ?? '';
     }
 
     private static function hasMetadata(string $key): bool
@@ -526,80 +703,6 @@ class LaravelPackageSkeletonConfigurator
         }
 
         return $steps;
-    }
-
-    /**
-     * @param  list<string>  $features
-     * @param  list<string>  $tools
-     * @return list<string>
-     */
-    private static function validate(array $features, array $tools): array
-    {
-        $errors = [];
-        $paths = [
-            'composer.json',
-            'src/SkeletonServiceProvider.php',
-            'README.md',
-            'README_PACKAGE.md',
-            'AGENTS_PACKAGE.md',
-        ];
-
-        foreach ($paths as $path) {
-            if (! file_exists(self::$rootDir.'/'.$path)) {
-                $errors[] = "Expected skeleton file [{$path}] was not found.";
-            }
-        }
-
-        foreach (array_keys(self::metadataFields()) as $key) {
-            if (! self::hasMetadata($key)) {
-                $errors[] = self::fieldLabel($key).' is required.';
-            }
-        }
-
-        if (
-            self::hasMetadata('author_email') &&
-            filter_var(self::$metadata['author_email'], FILTER_VALIDATE_EMAIL) === false
-        ) {
-            $errors[] = self::fieldLabel('author_email').' must be a valid email address.';
-        }
-
-        if (
-            self::hasMetadata('vendor_slug') &&
-            ! preg_match('/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/', self::$metadata['vendor_slug'])
-        ) {
-            $errors[] = self::fieldLabel('vendor_slug').' may only contain letters, numbers, and hyphens.';
-        }
-
-        if (
-            self::hasMetadata('package_slug') &&
-            ! preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', self::$metadata['package_slug'])
-        ) {
-            $errors[] = self::fieldLabel('package_slug').' must be a lowercase slug.';
-        }
-
-        foreach (['vendor_namespace', 'class_name'] as $key) {
-            if (isset(self::$metadata[$key]) && ! self::isPhpIdentifier(self::$metadata[$key])) {
-                $errors[] = self::fieldLabel($key).' must be a valid PHP identifier.';
-            }
-        }
-
-        $unknownFeatures = array_diff($features, self::featureKeys());
-        $unknownTools = array_diff($tools, self::toolKeys());
-
-        foreach ($unknownFeatures as $feature) {
-            $errors[] = "Unknown package feature [{$feature}].";
-        }
-
-        foreach ($unknownTools as $tool) {
-            $errors[] = "Unknown package tool [{$tool}].";
-        }
-
-        return $errors;
-    }
-
-    private static function isPhpIdentifier(string $value): bool
-    {
-        return preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) === 1;
     }
 
     private static function fieldLabel(string $key): string
@@ -649,7 +752,7 @@ class LaravelPackageSkeletonConfigurator
         $vendorNamespace = self::$metadata['vendor_namespace'];
         $className = self::$metadata['class_name'];
         $packageSlug = self::$metadata['package_slug'];
-        $packageName = self::$metadata['package_name'];
+        $packageName = self::$metadata['package_name_human'];
         $vendorSlug = self::$metadata['vendor_slug'];
 
         return [
@@ -659,7 +762,7 @@ class LaravelPackageSkeletonConfigurator
             ':vendor_name' => self::headline($vendorSlug),
             ':vendor_slug' => $vendorSlug,
             ':vendor_namespace' => $vendorNamespace,
-            ':package_name' => $packageName,
+            ':package_name_human' => $packageName,
             ':package_slug' => $packageSlug,
             ':package_description' => self::$metadata['package_description'],
             ':class_name' => $className,
@@ -860,144 +963,6 @@ class LaravelPackageSkeletonConfigurator
         );
 
         self::trackModified($path);
-    }
-
-    private static function removeFeature(string $feature): void
-    {
-        $provider = sprintf('%s/src/%sServiceProvider.php', self::$rootDir, self::$metadata['class_name']);
-        $readme = self::$rootDir.'/README.md';
-        $docsConfig = self::$rootDir.'/docs/.vitepress/config.ts';
-        $docsIndex = self::$rootDir.'/docs/index.md';
-        $docsInstallation = self::$rootDir.'/docs/getting-started/installation.md';
-
-        $map = [
-            'config' => fn () => [
-                self::removePath('config'),
-                self::removeChiselSection($provider, 'config'),
-                self::removeMarkdownSection($readme, 'Publishing the Configuration File'),
-                self::removePath('docs/getting-started/configuration.md'),
-                self::removeLinesContaining($docsConfig, ['Configuration']),
-                self::removeLinesContaining($docsIndex, ['Configuration']),
-                self::removeLinesContaining($docsInstallation, ['-config']),
-                self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - config']),
-            ],
-            'routes' => fn () => [
-                self::removePath('routes'),
-                self::removeChiselSection($provider, 'routes'),
-                self::removeLinesContaining($readme, ['route', 'Route']),
-                self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - routes']),
-            ],
-            'views' => fn () => [
-                self::removePath('resources/views'),
-                self::removeChiselSection($provider, 'views'),
-                self::removeMarkdownSection($readme, 'Publishing the Views'),
-                self::removeLinesContaining($docsInstallation, ['-views']),
-            ],
-            'translations' => fn () => [
-                self::removePath('lang'),
-                self::removeChiselSection($provider, 'translations'),
-                self::removeMarkdownSection($readme, 'Publishing the Translations'),
-                self::removeLinesContaining($docsInstallation, ['-lang']),
-            ],
-            'migrations' => fn () => [
-                self::removePath('database/migrations'),
-                self::removeChiselSection($provider, 'migrations'),
-                self::removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
-                self::removeLinesContaining($docsInstallation, ['-migrations']),
-                self::removeMarkdownSection($docsInstallation, 'Running Migrations'),
-                self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - database']),
-            ],
-            'assets' => fn () => [
-                self::removePath('public'),
-                self::removeChiselSection($provider, 'assets'),
-                self::removeMarkdownSection($readme, 'Publishing the Public Assets'),
-                self::removeLinesContaining($docsInstallation, ['-assets']),
-            ],
-            'commands' => fn () => [
-                self::removePath('src/Console/Commands'),
-                self::removeChiselSection($provider, 'commands'),
-                self::removeLinesContaining($readme, ['command', 'Command']),
-            ],
-            'facade' => fn () => [
-                self::removePath('src/Facades'),
-                self::removeLinesContaining($readme, ['facade', 'Facade']),
-            ],
-            'boost_skill' => fn () => [
-                self::removePath('resources/boost/skills'),
-                self::removePath('.agents/skills/package-generate-skill'),
-                self::removePath('.claude/skills/package-generate-skill'),
-                self::removeLinesContaining($readme, ['Boost', 'boost']),
-                self::removeLinesContaining(self::$rootDir.'/AGENTS.md', ['Boost', 'boost']),
-            ],
-        ];
-
-        if (isset($map[$feature])) {
-            $map[$feature]();
-        }
-    }
-
-    private static function removeTool(string $tool): void
-    {
-        $readme = self::$rootDir.'/README.md';
-        $docsConfig = self::$rootDir.'/docs/.vitepress/config.ts';
-        $docsIndex = self::$rootDir.'/docs/index.md';
-
-        $map = [
-            'dependabot' => fn () => [
-                self::removePath('.github/dependabot.yml'),
-                self::removeLinesContaining($readme, ['Dependabot']),
-                self::removeLinesContaining(self::$rootDir.'/docs/index.md', ['Dependabot']),
-            ],
-            'issue_template' => fn () => self::removePath(
-                '.github/ISSUE_TEMPLATE',
-            ),
-            'changelog' => fn () => [
-                self::removePath('CHANGELOG.md'),
-                self::removePath('.github/workflows/update-changelog.yml'),
-                self::removePath('.github/release.yml'),
-                self::removePath('docs/getting-started/changelog.md'),
-                self::removeLinesContaining($docsConfig, ['Changelog']),
-                self::removeLinesContaining($docsIndex, ['Changelog']),
-                self::removeMarkdownSection($readme, 'Changelog'),
-                self::removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
-            ],
-            'funding' => fn () => self::removePath('.github/FUNDING.yml'),
-            'security_policy' => fn () => [
-                self::removePath('.github/SECURITY.md'),
-                self::removeMarkdownSection($readme, 'Security Vulnerabilities'),
-            ],
-            'documentation' => fn () => [
-                self::removePath('docs'),
-                self::removePath('package.json'),
-                self::removePath('.agents/skills/package-docs'),
-                self::removePath('.claude/skills/package-docs'),
-                self::removePath('.github/workflows/docs.yml'),
-                self::removeLinesContaining($readme, [
-                    'documentation',
-                    'Documentation',
-                    'VitePress',
-                    'GitHub Pages',
-                ]),
-                self::removeLinesContaining(self::$rootDir.'/AGENTS.md', ['VitePress', 'docs/']),
-                self::removeLinesContaining(self::$rootDir.'/.agents/skills/package-generate-skill/SKILL.md', ['docs/']),
-                self::removeLinesContaining(self::$rootDir.'/.claude/skills/package-generate-skill/SKILL.md', ['docs/']),
-                self::removeLinesContaining(self::$rootDir.'/.gitignore', [
-                    'docs/.vitepress/dist',
-                    'package-lock.json',
-                    'pnpm-lock.yaml',
-                    'bun.lock',
-                ]),
-                self::removeLinesContaining(self::$rootDir.'/.gitattributes', [
-                    '/docs',
-                    '/package.json',
-                    'docs/.vitepress/dist',
-                ]),
-            ],
-        ];
-
-        if (isset($map[$tool])) {
-            $map[$tool]();
-        }
     }
 
     private static function removeMarkdownSection(string $path, string $heading): void
@@ -1344,7 +1309,7 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        self::removePath('configure.php');
+        // self::removePath('configure.php');
 
         $gitCommands = [
             ['git', 'add', '--all'],
@@ -1498,7 +1463,7 @@ class LaravelPackageSkeletonConfigurator
                 self::keyToOption($key),
                 null,
                 InputOption::VALUE_NONE,
-                sprintf('Disable the %s feature', self::feature($key)),
+                sprintf('Disable the %s feature', self::feature($key)['label']),
             ),
             self::featureKeys(),
         );
@@ -1542,9 +1507,7 @@ class LaravelPackageSkeletonConfigurator
             return null;
         }
 
-        $user = json_decode($result['output'], true);
-
-        return $user['login'] ?? null;
+        return $result['output'];
     }
 
     /** @return array<string, string> */
@@ -1563,10 +1526,11 @@ class LaravelPackageSkeletonConfigurator
         return [
             'author_name' => $authorName,
             'author_email' => $authorEmail,
+            'package_name' => "$vendorSlug/$packageSlug",
             'author_username' => $vendorSlug,
             'vendor_slug' => $vendorSlug,
-            'vendor_namespace' => self::studly($vendorSlug),
-            'package_name' => self::headline($packageSlug),
+            'vendor_namespace' => self::studly($packageSlug),
+            'package_name_human' => self::headline($packageSlug),
             'package_slug' => $packageSlug,
             'class_name' => $className,
             'package_description' => '',
