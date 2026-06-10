@@ -162,7 +162,7 @@ class LaravelPackageSkeletonConfigurator
             info('Next steps:');
 
             foreach ($result['summary']['manual_steps'] as $manualStep) {
-                $lines = wordwrap($manualStep);
+                $lines = wordwrap($manualStep, width: 60);
                 $lines = explode(PHP_EOL, $lines);
                 $finalLines = [];
 
