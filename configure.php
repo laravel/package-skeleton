@@ -120,10 +120,12 @@ class LaravelPackageSkeletonConfigurator
             );
         }
 
+        $defaultFeatures = self::flaggedFeatures() ?: self::featureKeys();
+
         $features = multiselect(
             'Package Features',
             array_map(fn ($feature) => $feature['label'], self::features()),
-            self::featureKeys(),
+            $defaultFeatures,
             info: fn (string $key) => self::features()[$key]['description'] ?? '',
         );
 
@@ -174,7 +176,7 @@ class LaravelPackageSkeletonConfigurator
         self::$metadata = $defaults;
 
         $result = self::configure([
-            'features' => self::nonInteractiveFeatures(),
+            'features' => self::flaggedFeatures(),
             'tools' => self::toolKeys(),
         ]);
 
@@ -201,19 +203,19 @@ class LaravelPackageSkeletonConfigurator
     }
 
     /** @return list<string> */
-    private static function nonInteractiveFeatures(): array
+    private static function flaggedFeatures(): array
     {
         return array_values(
             array_filter(
                 self::featureKeys(),
-                fn (string $feature): bool => ! self::input()->getOption(self::keyToOption($feature)),
+                fn (string $feature): bool => (bool) self::input()->getOption(self::keyToOption($feature)),
             ),
         );
     }
 
     private static function keyToOption(string $key): string
     {
-        return 'no-'.str_replace('_', '-', $key);
+        return str_replace('_', '-', $key);
     }
 
     /** @param  array<string, mixed>  $payload */
@@ -1457,7 +1459,7 @@ class LaravelPackageSkeletonConfigurator
                 self::keyToOption($key),
                 null,
                 InputOption::VALUE_NONE,
-                sprintf('Disable the %s feature', self::feature($key)['label']),
+                sprintf('Include %s', self::feature($key)['label']),
             ),
             self::featureKeys(),
         );
