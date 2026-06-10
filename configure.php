@@ -42,6 +42,9 @@ class LaravelPackageSkeletonConfigurator
      */
     private static array $summary = [];
 
+    /**
+     * @var array{vendor_slug: string, package_slug: string, package_name_human: string}
+     */
     private static array $metadata = [];
 
     private const SUCCESS = 0;
@@ -89,13 +92,11 @@ class LaravelPackageSkeletonConfigurator
             return self::SUCCESS;
         }
 
-        $defaults = self::defaults();
-
         if (self::isNonInteractive()) {
-            return self::runNonInteractive($defaults);
+            return self::runNonInteractive(self::defaults());
         }
 
-        return self::runInteractive($defaults);
+        return self::runInteractive();
     }
 
     private static function dependenciesAreInstalled(): bool
@@ -105,16 +106,14 @@ class LaravelPackageSkeletonConfigurator
             class_exists(Chisel::class);
     }
 
-    private static function runInteractive(array $defaults): int
+    private static function runInteractive(): int
     {
         intro('Configure your Laravel package');
 
         foreach (self::metadataFields() as $key => $field) {
-            $default = self::metadataDefault($key, $defaults);
-
             self::$metadata[$key] = text(
                 $field['label'],
-                default: $default,
+                default: $field['default'](),
                 required: true,
                 hint: $field['hint'],
                 validate: $field['validate'] ?? null,
@@ -480,17 +479,25 @@ class LaravelPackageSkeletonConfigurator
         return array_keys(self::tools());
     }
 
-    /** @return array<string, array{label: string, hint: string}> */
+    /** @return array<string, array{label: string, hint: string, default: callable, validate?: callable}> */
     private static function metadataFields(): array
     {
+        $directoryName = basename(self::$rootDir);
+        $packageSlug = self::slug($directoryName === 'package-skeleton' ? 'my-package' : $directoryName);
+        $authorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
+        $authorEmail = trim((string) shell_exec('git config user.email')) ?: 'author@example.com';
+        $vendorSlug = self::ghUsername() ?: self::slug($authorName) ?: 'vendor-name';
+
         return [
             'author_name' => [
                 'label' => 'Author name',
                 'hint' => 'Used in composer.json credits and README attribution.',
+                'default' => fn () => $authorName,
             ],
             'author_email' => [
                 'label' => 'Author email',
                 'hint' => 'Used in composer.json package author metadata.',
+                'default' => fn () => $authorEmail,
                 'validate' => function ($value) {
                     if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
                         return 'Must be a valid email address.';
@@ -502,6 +509,7 @@ class LaravelPackageSkeletonConfigurator
             'package_name' => [
                 'label' => 'Package name',
                 'hint' => 'Used in composer.json and as the package name in Packagist.',
+                'default' => "$vendorSlug/$packageSlug",
                 'validate' => function ($value) {
                     if (! preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/', $value)) {
                         return 'Package name must be in the format vendor/package.';
@@ -513,14 +521,21 @@ class LaravelPackageSkeletonConfigurator
             'package_name_human' => [
                 'label' => 'Package name (human readable)',
                 'hint' => 'Used as the human-readable package name in README and docs.',
+                'default' => function () {
+                    $packageName = explode('/', self::$metadata['package_name'])[1];
+
+                    return self::headline(str_replace('-', ' ', $packageName));
+                },
             ],
             'package_description' => [
                 'label' => 'Package description',
                 'hint' => 'Used in composer.json, README, and documentation intro copy.',
+                'default' => fn () => '',
             ],
             'vendor_namespace' => [
                 'label' => 'Vendor namespace',
                 'hint' => 'Used as the top-level PHP namespace, for example VendorName\\PackageName.',
+                'default' => fn () => self::studly(self::slug(self::$metadata['package_name_human'])),
                 'validate' => function ($value) {
                     if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
                         return 'Vendor namespace must be a valid PHP namespace.';
@@ -532,6 +547,7 @@ class LaravelPackageSkeletonConfigurator
             'class_name' => [
                 'label' => 'Main class name',
                 'hint' => 'Used for the main class, service provider, facade, and command class names.',
+                'default' => fn () => self::studly(self::slug(self::$metadata['package_name_human'])),
                 'validate' => function ($value) {
                     if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
                         return 'Class name must be a valid PHP class name.';
@@ -642,32 +658,6 @@ class LaravelPackageSkeletonConfigurator
             'github' => $github,
             'summary' => self::$summary,
         ];
-    }
-
-    /**
-     * @param  array<string, string>  $defaults
-     */
-    private static function metadataDefault(string $key, array $defaults): string
-    {
-        if ($key === 'package_name_human' && self::hasMetadata('package_name')) {
-            $packageName = explode('/', self::$metadata['package_name'])[1];
-
-            return ucwords(str_replace('-', ' ', $packageName));
-        }
-
-        if ($key === 'package_slug' && self::hasMetadata('package_name_human')) {
-            return self::slug(self::$metadata['package_name_human']);
-        }
-
-        if ($key === 'class_name' && self::hasMetadata('package_name_human')) {
-            return self::studly(self::slug(self::$metadata['package_name_human']));
-        }
-
-        if ($key === 'vendor_namespace' && self::hasMetadata('package_name_human')) {
-            return self::studly(self::slug(self::$metadata['package_name_human']));
-        }
-
-        return $defaults[$key] ?? '';
     }
 
     private static function hasMetadata(string $key): bool
@@ -1513,28 +1503,10 @@ class LaravelPackageSkeletonConfigurator
     /** @return array<string, string> */
     private static function defaults(): array
     {
-        $directoryName = basename(self::$rootDir);
-        $packageSlug = self::slug(match ($directoryName) {
-            'package-skeleton' => 'my-package',
-            default => $directoryName,
-        });
-        $className = self::studly($packageSlug);
-        $authorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
-        $authorEmail = trim((string) shell_exec('git config user.email')) ?: 'author@example.com';
-        $vendorSlug = self::ghUsername() ?: self::slug($authorName) ?: 'vendor-name';
-
-        return [
-            'author_name' => $authorName,
-            'author_email' => $authorEmail,
-            'package_name' => "$vendorSlug/$packageSlug",
-            'author_username' => $vendorSlug,
-            'vendor_slug' => $vendorSlug,
-            'vendor_namespace' => self::studly($packageSlug),
-            'package_name_human' => self::headline($packageSlug),
-            'package_slug' => $packageSlug,
-            'class_name' => $className,
-            'package_description' => '',
-        ];
+        return array_map(
+            fn (string $key) => self::feature($key)['default'](),
+            self::features(),
+        );
     }
 
     private static function slug(string $value): string
