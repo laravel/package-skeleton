@@ -204,7 +204,7 @@ class Metadata
         return $this->data['package_description'];
     }
 
-    public function packageNamespace()
+    public function vendorSlug()
     {
         return explode('/', $this->data['package_name'])[0];
     }
@@ -487,7 +487,7 @@ class LaravelPackageSkeletonConfigurator
         $this->metadata->useDefaults();
 
         $result = $this->configure([
-            'features' => $this->flaggedFeatures(),
+            'features' => $this->flaggedFeatures() ?: $this->featureKeys(),
             'tools' => $this->toolKeys(),
         ]);
 
@@ -965,7 +965,7 @@ class LaravelPackageSkeletonConfigurator
         $vendorNamespace = $this->metadata->vendorNamespace();
         $className = $this->metadata->className();
         $packageName = $this->metadata->packageNameHuman();
-        $vendorSlug = $this->metadata->packageNamespace();
+        $vendorSlug = $this->metadata->vendorSlug();
         $packageSlug = $this->metadata->packageSlug();
 
         return [
