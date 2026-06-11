@@ -321,6 +321,11 @@ class Metadata
             $this->data[$key] = $field['default']();
         }
     }
+
+    public function toArray(): array
+    {
+        return $this->data;
+    }
 }
 
 class LaravelPackageSkeletonConfigurator
@@ -805,7 +810,7 @@ class LaravelPackageSkeletonConfigurator
         $github = $this->defaultGithubResult();
 
         $this->summary = [
-            'metadata' => $this->metadata,
+            'metadata' => $this->metadata->toArray(),
             'selected_features' => $selectedFeatures,
             'selected_tools' => $selectedTools,
             'removed_paths' => [],
