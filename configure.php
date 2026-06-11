@@ -189,42 +189,42 @@ class Metadata
         $this->input = $input;
     }
 
-    public function packageName()
+    public function packageName(): string
     {
         return $this->data['package_name'];
     }
 
-    public function packageNameHuman()
+    public function packageNameHuman(): string
     {
         return $this->data['package_name_human'];
     }
 
-    public function packageDescription()
+    public function packageDescription(): string
     {
         return $this->data['package_description'];
     }
 
-    public function vendorSlug()
+    public function vendorSlug(): string
     {
         return explode('/', $this->data['package_name'])[0];
     }
 
-    public function packageSlug()
+    public function packageSlug(): string
     {
         return explode('/', $this->data['package_name'])[1];
     }
 
-    public function authorName()
+    public function authorName(): string
     {
         return $this->data['author_name'];
     }
 
-    public function authorEmail()
+    public function authorEmail(): string
     {
         return $this->data['author_email'];
     }
 
-    public function vendorNamespace()
+    public function vendorNamespace(): string
     {
         return $this->data['vendor_namespace'];
     }
