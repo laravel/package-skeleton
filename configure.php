@@ -52,7 +52,7 @@ trait FormatsStrings
 
 trait InteractsWithGitHub
 {
-    protected $existingCommands = [];
+    protected array $existingCommands = [];
 
     protected ?string $ghUsername = null;
 
@@ -229,7 +229,7 @@ class Metadata
         return $this->data['vendor_namespace'];
     }
 
-    public function className()
+    public function className(): string
     {
         return $this->data['class_name'] ?? '';
     }
