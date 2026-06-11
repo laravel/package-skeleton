@@ -20,52 +20,357 @@ use function Laravel\Prompts\spin;
 use function Laravel\Prompts\text;
 use function Laravel\Prompts\warning;
 
+trait FormatsStrings
+{
+    private function slug(string $value): string
+    {
+        return trim(
+            strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '-', $value)),
+            '-',
+        );
+    }
+
+    private function studly(string $value): string
+    {
+        return str_replace(
+            ' ',
+            '',
+            ucwords(str_replace(['-', '_'], ' ', $value)),
+        );
+    }
+
+    private function headline(string $value): string
+    {
+        return ucwords(str_replace(['-', '_'], ' ', $value));
+    }
+
+    private function snake(string $value): string
+    {
+        return str_replace('-', '_', $this->slug($value));
+    }
+}
+
+trait InteractsWithGitHub
+{
+    protected $existingCommands = [];
+
+    protected ?string $ghUsername = null;
+
+    protected ?bool $ghAuthenticated = null;
+
+    private function commandExists(string $command): bool
+    {
+        if (isset($this->existingCommands[$command])) {
+            return $this->existingCommands[$command];
+        }
+
+        [$check, $devnull] = match (PHP_OS_FAMILY) {
+            'Windows' => ['where', 'NUL'],
+            default => ['command -v', '/dev/null'],
+        };
+
+        $result = shell_exec(
+            sprintf('%s %s 2> %s', $check, escapeshellarg($command), $devnull),
+        );
+
+        $this->existingCommands[$command] = trim((string) $result) !== '';
+
+        return $this->existingCommands[$command];
+    }
+
+    private function ghIsAuthenticated(): bool
+    {
+        if ($this->ghAuthenticated !== null) {
+            return $this->ghAuthenticated;
+        }
+
+        $result = $this->runCommand(
+            ['gh', 'auth', 'status'],
+            getcwd() ?: __DIR__,
+        );
+
+        return $this->ghAuthenticated = $result['success'];
+    }
+
+    private function ghUsername(): ?string
+    {
+        if ($this->ghUsername !== null) {
+            return $this->ghUsername;
+        }
+
+        if (! $this->commandExists('gh') || ! $this->ghIsAuthenticated()) {
+            return null;
+        }
+
+        $result = $this->runCommand(
+            ['gh', 'api', 'user', '--jq', '.login'],
+            getcwd() ?: __DIR__,
+        );
+
+        if (! $result['success']) {
+            return null;
+        }
+
+        return $this->ghUsername = $result['output'];
+    }
+
+    /**
+     * @param  list<string>  $command
+     * @return array<string, mixed>
+     */
+    private function runGitHubCommand(array $command, mixed $runner): array
+    {
+        return is_callable($runner)
+            ? $runner($command)
+            : $this->runCommand($command);
+    }
+
+    /**
+     * @param  list<string>  $command
+     * @return array{success: bool, output: string}
+     */
+    private function runCommand(array $command, ?string $cwd = null): array
+    {
+        $cwd ??= $this->rootDir;
+
+        $process = proc_open(
+            implode(' ', array_map('escapeshellarg', $command)),
+            [
+                1 => ['pipe', 'w'],
+                2 => ['pipe', 'w'],
+            ],
+            $pipes,
+            $cwd,
+        );
+
+        if (! is_resource($process)) {
+            return ['success' => false, 'output' => 'Unable to start process.'];
+        }
+
+        $output = stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        return [
+            'success' => proc_close($process) === 0,
+            'output' => trim((string) $output),
+        ];
+    }
+}
+
+class Metadata
+{
+    use FormatsStrings, InteractsWithGitHub;
+
+    protected array $data = [];
+
+    protected ArgvInput $input;
+
+    public function __construct(protected string $rootDir)
+    {
+        //
+    }
+
+    public function collect(): void
+    {
+        foreach ($this->fields() as $key => $field) {
+            $this->data[$key] = text(
+                $field['label'],
+                default: $field['default'](),
+                required: true,
+                hint: $field['hint'],
+                validate: $field['validate'] ?? null,
+            );
+        }
+    }
+
+    public function setInput(ArgvInput $input): void
+    {
+        $this->input = $input;
+    }
+
+    public function packageName()
+    {
+        return $this->data['package_name'];
+    }
+
+    public function packageNameHuman()
+    {
+        return $this->data['package_name_human'];
+    }
+
+    public function packageDescription()
+    {
+        return $this->data['package_description'];
+    }
+
+    public function packageNamespace()
+    {
+        return explode('/', $this->data['package_name'])[0];
+    }
+
+    public function packageSlug()
+    {
+        return explode('/', $this->data['package_name'])[1];
+    }
+
+    public function authorName()
+    {
+        return $this->data['author_name'];
+    }
+
+    public function authorEmail()
+    {
+        return $this->data['author_email'];
+    }
+
+    public function vendorNamespace()
+    {
+        return $this->data['vendor_namespace'];
+    }
+
+    public function className()
+    {
+        return $this->data['class_name'] ?? '';
+    }
+
+    /** @return array<string, array{label: string, hint: string, default: callable, validate?: callable}> */
+    public function fields(): array
+    {
+        $directoryName = basename($this->rootDir);
+        $packageSlug = $this->slug($directoryName === 'package-skeleton' ? 'my-package' : $directoryName);
+        $authorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
+        $authorEmail = trim((string) shell_exec('git config user.email')) ?: 'author@example.com';
+        $vendorSlug = $this->ghUsername() ?: $this->slug($authorName) ?: 'vendor-name';
+
+        return [
+            'author_name' => [
+                'label' => 'Author name',
+                'hint' => 'Used in composer.json credits and README attribution.',
+                'default' => fn () => $this->input->getOption('author-name') ?? $authorName,
+            ],
+            'author_email' => [
+                'label' => 'Author email',
+                'hint' => 'Used in composer.json package author metadata.',
+                'default' => fn () => $this->input->getOption('author-email') ?? $authorEmail,
+                'validate' => function ($value) {
+                    if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
+                        return 'Must be a valid email address.';
+                    }
+
+                    return null;
+                },
+            ],
+            'package_name' => [
+                'label' => 'Package name',
+                'hint' => 'Used in composer.json and as the package name in Packagist.',
+                'default' => fn () => $this->input->getOption('package-name') ?? "$vendorSlug/$packageSlug",
+                'validate' => function ($value) {
+                    if (! preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/', $value)) {
+                        return 'Package name must be in the format vendor/package.';
+                    }
+
+                    return null;
+                },
+            ],
+            'package_name_human' => [
+                'label' => 'Package name (human readable)',
+                'hint' => 'Used as the human-readable package name in README and docs.',
+                'default' => function () {
+                    if ($value = $this->input->getOption('package-name-human')) {
+                        return $value;
+                    }
+
+                    return $this->headline(str_replace('-', ' ', $this->packageSlug()));
+                },
+            ],
+            'package_description' => [
+                'label' => 'Package description',
+                'hint' => 'Used in composer.json, README, and documentation intro copy.',
+                'default' => fn () => $this->input->getOption('package-description') ?? '',
+            ],
+            'vendor_namespace' => [
+                'label' => 'Vendor namespace',
+                'hint' => 'Used as the top-level PHP namespace, for example VendorName\\PackageName.',
+                'default' => fn () => $this->input->getOption('vendor-namespace') ?? $this->studly($this->slug($this->packageNameHuman())),
+                'validate' => function ($value) {
+                    if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
+                        return 'Vendor namespace must be a valid PHP namespace.';
+                    }
+
+                    return null;
+                },
+            ],
+            'class_name' => [
+                'label' => 'Main class name',
+                'hint' => 'Used for the main class, service provider, facade, and command class names.',
+                'default' => fn () => $this->input->getOption('class-name') ?? $this->studly($this->slug($this->packageNameHuman())),
+                'validate' => function ($value) {
+                    if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
+                        return 'Class name must be a valid PHP class name.';
+                    }
+
+                    return null;
+                },
+            ],
+        ];
+    }
+
+    public function useDefaults(): void
+    {
+        foreach ($this->fields() as $key => $field) {
+            $this->data[$key] = $field['default']();
+        }
+    }
+}
+
 class LaravelPackageSkeletonConfigurator
 {
+    use FormatsStrings, InteractsWithGitHub;
+
     /**
      * @var array{'mode': string, 'visibility'?: string}
      */
-    private static array $githubConfig = [
+    private array $githubConfig = [
         'mode' => 'skip',
     ];
 
-    private static ?string $rootDir = null;
+    private ?Chisel $chisel = null;
 
-    private static ?Chisel $chisel = null;
+    private ?InputDefinition $definition = null;
 
-    private static ?InputDefinition $definition = null;
-
-    private static ?ArgvInput $input = null;
+    private ?ArgvInput $input = null;
 
     /**
      * @var array{'metadata': array<string, mixed>, 'selected_features': list<string>, 'selected_tools': list<string>, 'removed_paths': list<string>, 'modified_files': list<string>, 'manual_steps': list<string>}
      */
-    private static array $summary = [];
-
-    /**
-     * @var array{author_name: string, author_email: string, package_name: string, package_name_human: string, package_description: string, vendor_namespace: string, class_name: string}
-     */
-    private static array $metadata = [];
+    private array $summary = [];
 
     private const SUCCESS = 0;
 
     private const FAILURE = 1;
 
-    public static function run(string $rootDir): int
-    {
-        self::$rootDir = rtrim($rootDir, DIRECTORY_SEPARATOR);
+    private Metadata $metadata;
 
-        $autoload = self::$rootDir.'/vendor/autoload.php';
+    public function __construct(protected string $rootDir)
+    {
+        $this->rootDir = rtrim($rootDir, DIRECTORY_SEPARATOR);
+        $this->metadata = new MetaData($this->rootDir);
+    }
+
+    public function run(): int
+    {
+        $autoload = $this->rootDir.'/vendor/autoload.php';
 
         if (file_exists($autoload)) {
             require_once $autoload;
         }
 
-        if (! self::dependenciesAreInstalled()) {
+        if (! $this->dependenciesAreInstalled()) {
             $message = 'Composer dependencies are not installed. Run `composer install` before `php configure.php`.';
 
-            if (self::hasNonInteractiveFlags()) {
-                self::writeJson([
+            if ($this->hasNonInteractiveFlags()) {
+                $this->writeJson([
                     'message' => $message,
                     'success' => false,
                     'errors' => [$message],
@@ -78,76 +383,70 @@ class LaravelPackageSkeletonConfigurator
         }
 
         try {
-            $input = self::input();
+            $input = $this->input();
         } catch (RuntimeException $e) {
             fwrite(STDERR, $e->getMessage().PHP_EOL.PHP_EOL);
-            self::printHelp();
+            $this->printHelp();
 
             return self::FAILURE;
         }
 
+        $this->metadata->setInput($input);
+
         if ($input->getOption('help')) {
-            self::printHelp();
+            $this->printHelp();
 
             return self::SUCCESS;
         }
 
-        if (self::isNonInteractive()) {
-            return self::runNonInteractive(self::defaults());
+        if ($this->isNonInteractive()) {
+            return $this->runNonInteractive();
         }
 
-        return self::runInteractive();
+        return $this->runInteractive();
     }
 
-    private static function dependenciesAreInstalled(): bool
+    private function dependenciesAreInstalled(): bool
     {
         return function_exists('Laravel\Prompts\intro') &&
             class_exists(AgentDetector::class) &&
             class_exists(Chisel::class);
     }
 
-    private static function runInteractive(): int
+    private function runInteractive(): int
     {
         intro('Configure your Laravel package');
 
-        foreach (self::metadataFields() as $key => $field) {
-            self::$metadata[$key] = text(
-                $field['label'],
-                default: $field['default'](),
-                required: true,
-                hint: $field['hint'],
-                validate: $field['validate'] ?? null,
-            );
-        }
+        $this->metadata->collect();
 
-        $defaultFeatures = self::flaggedFeatures() ?: self::featureKeys();
+        $defaultFeatures = $this->flaggedFeatures() ?: $this->featureKeys();
 
         $features = multiselect(
             'Package Features',
-            array_map(fn ($feature) => $feature['label'], self::features()),
+            array_map(fn ($feature) => $feature['label'], $this->features()),
             $defaultFeatures,
-            info: fn (string $key) => self::features()[$key]['description'] ?? '',
+            info: fn (string $key) => $this->features()[$key]['description'] ?? '',
         );
 
         $tools = multiselect(
             'Package Tools',
-            array_map(fn ($tool) => $tool['label'], self::tools()),
-            self::toolKeys(),
-            info: fn (string $key) => self::tools()[$key]['description'] ?? '',
+            array_map(fn ($tool) => $tool['label'], $this->tools()),
+            $this->toolKeys(),
+            info: fn (string $key) => $this->tools()[$key]['description'] ?? '',
         );
 
-        self::setupGithubConfig();
+        $this->setupGithubConfig();
 
-        if (self::isGithubMode('create')) {
-            info('GitHub URL: https://github.com/'.self::$metadata['package_name']);
+        if ($this->isGithubMode('create')) {
+            info('GitHub URL: https://github.com/'.$this->metadata->packageName());
         }
 
         $result = spin(
-            fn (): array => self::configure([
+            fn (): array => $this->configure([
                 'features' => $features,
                 'tools' => $tools,
             ]),
-            self::isGithubMode('create') ? 'Creating GitHub repository and pushing the initial commit...' : 'Configuring the package...',
+            $this->isGithubMode('create') ? 'Creating GitHub repository and pushing the initial commit...' : 'Configuring the package...',
         );
 
         if (! $result['success']) {
@@ -183,16 +482,16 @@ class LaravelPackageSkeletonConfigurator
         return self::SUCCESS;
     }
 
-    private static function runNonInteractive(array $defaults): int
+    private function runNonInteractive(): int
     {
-        self::$metadata = $defaults;
+        $this->metadata->useDefaults();
 
-        $result = self::configure([
-            'features' => self::flaggedFeatures(),
-            'tools' => self::toolKeys(),
+        $result = $this->configure([
+            'features' => $this->flaggedFeatures(),
+            'tools' => $this->toolKeys(),
         ]);
 
-        self::writeJson(self::nonInteractivePayload($result));
+        $this->writeJson($this->nonInteractivePayload($result));
 
         return $result['success'] ? self::SUCCESS : self::FAILURE;
     }
@@ -201,7 +500,7 @@ class LaravelPackageSkeletonConfigurator
      * @param  array{success: bool, errors: list<string>, github?: array<string, mixed>, summary?: array<string, mixed>}  $result
      * @return array{message: string, success: bool, errors: list<string>, github: array<string, mixed>, summary: array<string, mixed>}
      */
-    private static function nonInteractivePayload(array $result): array
+    private function nonInteractivePayload(array $result): array
     {
         $success = $result['success'];
 
@@ -209,29 +508,29 @@ class LaravelPackageSkeletonConfigurator
             'message' => $success ? 'Package configured successfully.' : 'Package configuration failed.',
             'success' => $success,
             'errors' => $result['errors'],
-            'github' => $result['github'] ?? self::defaultGithubResult(),
+            'github' => $result['github'] ?? $this->defaultGithubResult(),
             'summary' => $result['summary'] ?? [],
         ];
     }
 
     /** @return list<string> */
-    private static function flaggedFeatures(): array
+    private function flaggedFeatures(): array
     {
         return array_values(
             array_filter(
-                self::featureKeys(),
-                fn (string $feature): bool => (bool) self::input()->getOption(self::keyToOption($feature)),
+                $this->featureKeys(),
+                fn (string $feature): bool => (bool) $this->input()->getOption($this->keyToOption($feature)),
             ),
         );
     }
 
-    private static function keyToOption(string $key): string
+    private function keyToOption(string $key): string
     {
         return str_replace('_', '-', $key);
     }
 
     /** @param  array<string, mixed>  $payload */
-    private static function writeJson(array $payload): void
+    private function writeJson(array $payload): void
     {
         fwrite(
             STDOUT,
@@ -239,20 +538,20 @@ class LaravelPackageSkeletonConfigurator
         );
     }
 
-    private static function isGithubMode(string $mode): bool
+    private function isGithubMode(string $mode): bool
     {
-        return (self::$githubConfig['mode'] ?? 'skip') === $mode;
+        return ($this->githubConfig['mode'] ?? 'skip') === $mode;
     }
 
-    private static function setupGithubConfig(): void
+    private function setupGithubConfig(): void
     {
-        if (! self::commandExists('gh')) {
+        if (! $this->commandExists('gh')) {
             warning('GitHub CLI was not found. Repository creation will be skipped.');
 
             return;
         }
 
-        if (! self::ghIsAuthenticated()) {
+        if (! $this->ghIsAuthenticated()) {
             warning('GitHub CLI is not authenticated. Repository creation will be skipped.');
 
             return;
@@ -268,14 +567,14 @@ class LaravelPackageSkeletonConfigurator
             'private',
         );
 
-        self::$githubConfig = [
+        $this->githubConfig = [
             'mode' => 'create',
             'visibility' => $visibility,
         ];
     }
 
     /** @return array{status: string, message: string, created_repositories: list<string>} */
-    private static function defaultGithubResult(): array
+    private function defaultGithubResult(): array
     {
         return [
             'status' => 'skipped',
@@ -285,99 +584,99 @@ class LaravelPackageSkeletonConfigurator
     }
 
     /** @return array<string, array{label: string, description?: string, remove?: callable}> */
-    private static function features(): array
+    private function features(): array
     {
-        $provider = sprintf('%s/src/%sServiceProvider.php', self::$rootDir, self::$metadata['class_name'] ?? '');
-        $readme = self::$rootDir.'/README.md';
-        $docsConfig = self::$rootDir.'/docs/.vitepress/config.ts';
-        $docsIndex = self::$rootDir.'/docs/index.md';
-        $docsInstallation = self::$rootDir.'/docs/getting-started/installation.md';
+        $provider = sprintf('%s/src/%sServiceProvider.php', $this->rootDir, $this->metadata->className() ?? '');
+        $readme = $this->rootDir.'/README.md';
+        $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
+        $docsIndex = $this->rootDir.'/docs/index.md';
+        $docsInstallation = $this->rootDir.'/docs/getting-started/installation.md';
 
         return [
             'config' => [
                 'label' => 'Config file',
                 'remove' => fn () => [
-                    self::removePath('config'),
-                    self::removeChiselSection($provider, 'config'),
-                    self::removeMarkdownSection($readme, 'Publishing the Configuration File'),
-                    self::removePath('docs/getting-started/configuration.md'),
-                    self::removeLinesContaining($docsConfig, ['Configuration']),
-                    self::removeLinesContaining($docsIndex, ['Configuration']),
-                    self::removeLinesContaining($docsInstallation, ['-config']),
-                    self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - config']),
+                    $this->removePath('config'),
+                    $this->removeChiselSection($provider, 'config'),
+                    $this->removeMarkdownSection($readme, 'Publishing the Configuration File'),
+                    $this->removePath('docs/getting-started/configuration.md'),
+                    $this->removeLinesContaining($docsConfig, ['Configuration']),
+                    $this->removeLinesContaining($docsIndex, ['Configuration']),
+                    $this->removeLinesContaining($docsInstallation, ['-config']),
+                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - config']),
                 ],
             ],
             'routes' => [
                 'label' => 'Routes',
                 'remove' => fn () => [
-                    self::removePath('routes'),
-                    self::removeChiselSection($provider, 'routes'),
-                    self::removeLinesContaining($readme, ['route', 'Route']),
-                    self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - routes']),
+                    $this->removePath('routes'),
+                    $this->removeChiselSection($provider, 'routes'),
+                    $this->removeLinesContaining($readme, ['route', 'Route']),
+                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - routes']),
                 ],
             ],
             'views' => [
                 'label' => 'Views',
                 'remove' => fn () => [
-                    self::removePath('resources/views'),
-                    self::removeChiselSection($provider, 'views'),
-                    self::removeMarkdownSection($readme, 'Publishing the Views'),
-                    self::removeLinesContaining($docsInstallation, ['-views']),
+                    $this->removePath('resources/views'),
+                    $this->removeChiselSection($provider, 'views'),
+                    $this->removeMarkdownSection($readme, 'Publishing the Views'),
+                    $this->removeLinesContaining($docsInstallation, ['-views']),
                 ],
             ],
             'translations' => [
                 'label' => 'Translations',
                 'remove' => fn () => [
-                    self::removePath('lang'),
-                    self::removeChiselSection($provider, 'translations'),
-                    self::removeMarkdownSection($readme, 'Publishing the Translations'),
-                    self::removeLinesContaining($docsInstallation, ['-lang']),
+                    $this->removePath('lang'),
+                    $this->removeChiselSection($provider, 'translations'),
+                    $this->removeMarkdownSection($readme, 'Publishing the Translations'),
+                    $this->removeLinesContaining($docsInstallation, ['-lang']),
                 ],
             ],
             'migrations' => [
                 'label' => 'Migrations',
                 'remove' => fn () => [
-                    self::removePath('database/migrations'),
-                    self::removeChiselSection($provider, 'migrations'),
-                    self::removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
-                    self::removeLinesContaining($docsInstallation, ['-migrations']),
-                    self::removeMarkdownSection($docsInstallation, 'Running Migrations'),
-                    self::removeLinesContaining(self::$rootDir.'/phpstan.neon.dist', ['        - database']),
+                    $this->removePath('database/migrations'),
+                    $this->removeChiselSection($provider, 'migrations'),
+                    $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
+                    $this->removeLinesContaining($docsInstallation, ['-migrations']),
+                    $this->removeMarkdownSection($docsInstallation, 'Running Migrations'),
+                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
                 ],
             ],
             'assets' => [
                 'label' => 'Assets',
                 'remove' => fn () => [
-                    self::removePath('public'),
-                    self::removeChiselSection($provider, 'assets'),
-                    self::removeMarkdownSection($readme, 'Publishing the Public Assets'),
-                    self::removeLinesContaining($docsInstallation, ['-assets']),
+                    $this->removePath('public'),
+                    $this->removeChiselSection($provider, 'assets'),
+                    $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
+                    $this->removeLinesContaining($docsInstallation, ['-assets']),
                 ],
             ],
             'commands' => [
                 'label' => 'Commands',
                 'remove' => fn () => [
-                    self::removePath('src/Console/Commands'),
-                    self::removeChiselSection($provider, 'commands'),
-                    self::removeLinesContaining($readme, ['command', 'Command']),
+                    $this->removePath('src/Console/Commands'),
+                    $this->removeChiselSection($provider, 'commands'),
+                    $this->removeLinesContaining($readme, ['command', 'Command']),
                 ],
             ],
             'facade' => [
                 'label' => 'Facade',
                 'remove' => fn () => [
-                    self::removePath('src/Facades'),
-                    self::removeLinesContaining($readme, ['facade', 'Facade']),
+                    $this->removePath('src/Facades'),
+                    $this->removeLinesContaining($readme, ['facade', 'Facade']),
                 ],
             ],
             'boost_skill' => [
                 'label' => 'Boost Skill',
                 'description' => 'Add a package skill for Laravel Boost',
                 'remove' => fn () => [
-                    self::removePath('resources/boost/skills'),
-                    self::removePath('.agents/skills/package-generate-skill'),
-                    self::removePath('.claude/skills/package-generate-skill'),
-                    self::removeLinesContaining($readme, ['Boost', 'boost']),
-                    self::removeLinesContaining(self::$rootDir.'/AGENTS.md', ['Boost', 'boost']),
+                    $this->removePath('resources/boost/skills'),
+                    $this->removePath('.agents/skills/package-generate-skill'),
+                    $this->removePath('.claude/skills/package-generate-skill'),
+                    $this->removeLinesContaining($readme, ['Boost', 'boost']),
+                    $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['Boost', 'boost']),
                 ],
             ],
         ];
@@ -386,97 +685,97 @@ class LaravelPackageSkeletonConfigurator
     /**
      * @return array{label: string, description?: string, remove?: callable}
      */
-    private static function feature(string $key): array
+    private function feature(string $key): array
     {
-        return self::features()[$key];
+        return $this->features()[$key];
     }
 
     /**
      * @return array{label: string, description?: string, remove?: callable}
      */
-    private static function tool(string $key): array
+    private function tool(string $key): array
     {
-        return self::tools()[$key];
+        return $this->tools()[$key];
     }
 
     /** @return list<string> */
-    private static function featureKeys(): array
+    private function featureKeys(): array
     {
-        return array_keys(self::features());
+        return array_keys($this->features());
     }
 
     /** @return array<string, array{label: string, description?: string, remove?: callable}> */
-    private static function tools(): array
+    private function tools(): array
     {
-        $readme = self::$rootDir.'/README.md';
-        $docsConfig = self::$rootDir.'/docs/.vitepress/config.ts';
-        $docsIndex = self::$rootDir.'/docs/index.md';
+        $readme = $this->rootDir.'/README.md';
+        $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
+        $docsIndex = $this->rootDir.'/docs/index.md';
 
         return [
             'dependabot' => [
                 'label' => 'Dependabot Pull Requests',
                 'remove' => fn () => [
-                    self::removePath('.github/dependabot.yml'),
-                    self::removeLinesContaining($readme, ['Dependabot']),
-                    self::removeLinesContaining(self::$rootDir.'/docs/index.md', ['Dependabot']),
+                    $this->removePath('.github/dependabot.yml'),
+                    $this->removeLinesContaining($readme, ['Dependabot']),
+                    $this->removeLinesContaining($this->rootDir.'/docs/index.md', ['Dependabot']),
                 ],
                 'description' => 'Automated dependency updates',
             ],
             'issue_template' => [
                 'label' => 'Issue Template',
-                'remove' => fn () => self::removePath(
+                'remove' => fn () => $this->removePath(
                     '.github/ISSUE_TEMPLATE',
                 ),
             ],
             'changelog' => [
                 'label' => 'Changelog',
                 'remove' => fn () => [
-                    self::removePath('CHANGELOG.md'),
-                    self::removePath('.github/workflows/update-changelog.yml'),
-                    self::removePath('.github/release.yml'),
-                    self::removePath('docs/getting-started/changelog.md'),
-                    self::removeLinesContaining($docsConfig, ['Changelog']),
-                    self::removeLinesContaining($docsIndex, ['Changelog']),
-                    self::removeMarkdownSection($readme, 'Changelog'),
-                    self::removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
+                    $this->removePath('CHANGELOG.md'),
+                    $this->removePath('.github/workflows/update-changelog.yml'),
+                    $this->removePath('.github/release.yml'),
+                    $this->removePath('docs/getting-started/changelog.md'),
+                    $this->removeLinesContaining($docsConfig, ['Changelog']),
+                    $this->removeLinesContaining($docsIndex, ['Changelog']),
+                    $this->removeMarkdownSection($readme, 'Changelog'),
+                    $this->removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
                 ],
                 'description' => 'Automated changelog generation',
             ],
             'funding' => [
                 'label' => 'Funding',
-                'remove' => fn () => self::removePath('.github/FUNDING.yml'),
+                'remove' => fn () => $this->removePath('.github/FUNDING.yml'),
             ],
             'security_policy' => [
                 'label' => 'Security Policy',
                 'remove' => fn () => [
-                    self::removePath('.github/SECURITY.md'),
-                    self::removeMarkdownSection($readme, 'Security Vulnerabilities'),
+                    $this->removePath('.github/SECURITY.md'),
+                    $this->removeMarkdownSection($readme, 'Security Vulnerabilities'),
                 ],
             ],
             'documentation' => [
                 'label' => 'Documentation',
                 'remove' => fn () => [
-                    self::removePath('docs'),
-                    self::removePath('package.json'),
-                    self::removePath('.agents/skills/package-docs'),
-                    self::removePath('.claude/skills/package-docs'),
-                    self::removePath('.github/workflows/docs.yml'),
-                    self::removeLinesContaining($readme, [
+                    $this->removePath('docs'),
+                    $this->removePath('package.json'),
+                    $this->removePath('.agents/skills/package-docs'),
+                    $this->removePath('.claude/skills/package-docs'),
+                    $this->removePath('.github/workflows/docs.yml'),
+                    $this->removeLinesContaining($readme, [
                         'documentation',
                         'Documentation',
                         'VitePress',
                         'GitHub Pages',
                     ]),
-                    self::removeLinesContaining(self::$rootDir.'/AGENTS.md', ['VitePress', 'docs/']),
-                    self::removeLinesContaining(self::$rootDir.'/.agents/skills/package-generate-skill/SKILL.md', ['docs/']),
-                    self::removeLinesContaining(self::$rootDir.'/.claude/skills/package-generate-skill/SKILL.md', ['docs/']),
-                    self::removeLinesContaining(self::$rootDir.'/.gitignore', [
+                    $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['VitePress', 'docs/']),
+                    $this->removeLinesContaining($this->rootDir.'/.agents/skills/package-generate-skill/SKILL.md', ['docs/']),
+                    $this->removeLinesContaining($this->rootDir.'/.claude/skills/package-generate-skill/SKILL.md', ['docs/']),
+                    $this->removeLinesContaining($this->rootDir.'/.gitignore', [
                         'docs/.vitepress/dist',
                         'package-lock.json',
                         'pnpm-lock.yaml',
                         'bun.lock',
                     ]),
-                    self::removeLinesContaining(self::$rootDir.'/.gitattributes', [
+                    $this->removeLinesContaining($this->rootDir.'/.gitattributes', [
                         '/docs',
                         '/package.json',
                         'docs/.vitepress/dist',
@@ -488,142 +787,58 @@ class LaravelPackageSkeletonConfigurator
     }
 
     /** @return list<string> */
-    private static function toolKeys(): array
+    private function toolKeys(): array
     {
-        return array_keys(self::tools());
-    }
-
-    /** @return array<string, array{label: string, hint: string, default: callable, validate?: callable}> */
-    private static function metadataFields(): array
-    {
-        $directoryName = basename(self::$rootDir);
-        $packageSlug = self::slug($directoryName === 'package-skeleton' ? 'my-package' : $directoryName);
-        $authorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
-        $authorEmail = trim((string) shell_exec('git config user.email')) ?: 'author@example.com';
-        $vendorSlug = self::ghUsername() ?: self::slug($authorName) ?: 'vendor-name';
-
-        return [
-            'author_name' => [
-                'label' => 'Author name',
-                'hint' => 'Used in composer.json credits and README attribution.',
-                'default' => fn () => self::input()->getOption('author-name') ?? $authorName,
-            ],
-            'author_email' => [
-                'label' => 'Author email',
-                'hint' => 'Used in composer.json package author metadata.',
-                'default' => fn () => self::input()->getOption('author-email') ?? $authorEmail,
-                'validate' => function ($value) {
-                    if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
-                        return 'Must be a valid email address.';
-                    }
-
-                    return null;
-                },
-            ],
-            'package_name' => [
-                'label' => 'Package name',
-                'hint' => 'Used in composer.json and as the package name in Packagist.',
-                'default' => fn () => self::input()->getOption('package-name') ?? "$vendorSlug/$packageSlug",
-                'validate' => function ($value) {
-                    if (! preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/', $value)) {
-                        return 'Package name must be in the format vendor/package.';
-                    }
-
-                    return null;
-                },
-            ],
-            'package_name_human' => [
-                'label' => 'Package name (human readable)',
-                'hint' => 'Used as the human-readable package name in README and docs.',
-                'default' => function () {
-                    if ($value = self::input()->getOption('package-name-human')) {
-                        return $value;
-                    }
-
-                    $packageName = explode('/', self::$metadata['package_name'])[1];
-
-                    return self::headline(str_replace('-', ' ', $packageName));
-                },
-            ],
-            'package_description' => [
-                'label' => 'Package description',
-                'hint' => 'Used in composer.json, README, and documentation intro copy.',
-                'default' => fn () => self::input()->getOption('package-description') ?? '',
-            ],
-            'vendor_namespace' => [
-                'label' => 'Vendor namespace',
-                'hint' => 'Used as the top-level PHP namespace, for example VendorName\\PackageName.',
-                'default' => fn () => self::input()->getOption('vendor-namespace') ?? self::studly(self::slug(self::$metadata['package_name_human'])),
-                'validate' => function ($value) {
-                    if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
-                        return 'Vendor namespace must be a valid PHP namespace.';
-                    }
-
-                    return null;
-                },
-            ],
-            'class_name' => [
-                'label' => 'Main class name',
-                'hint' => 'Used for the main class, service provider, facade, and command class names.',
-                'default' => fn () => self::input()->getOption('class-name') ?? self::studly(self::slug(self::$metadata['package_name_human'])),
-                'validate' => function ($value) {
-                    if (preg_match('/^[A-Z_a-z][A-Z_a-z0-9]*$/', $value) !== 1) {
-                        return 'Class name must be a valid PHP class name.';
-                    }
-
-                    return null;
-                },
-            ],
-        ];
+        return array_keys($this->tools());
     }
 
     /**
      * @param  array<string, mixed>  $options
      * @return array{success: bool, errors: list<string>, github: array<string, mixed>, summary: array<string, mixed>}
      */
-    private static function configure(array $options): array
+    private function configure(array $options): array
     {
         $selectedFeatures = array_values(
-            $options['features'] ?? self::featureKeys(),
+            $options['features'] ?? $this->featureKeys(),
         );
-        $selectedTools = array_values($options['tools'] ?? self::toolKeys());
+        $selectedTools = array_values($options['tools'] ?? $this->toolKeys());
 
-        $github = self::defaultGithubResult();
+        $github = $this->defaultGithubResult();
 
-        self::$summary = [
-            'metadata' => self::$metadata,
+        $this->summary = [
+            'metadata' => $this->metadata,
             'selected_features' => $selectedFeatures,
             'selected_tools' => $selectedTools,
             'removed_paths' => [],
             'modified_files' => [],
-            'manual_steps' => self::manualSteps($selectedTools),
+            'manual_steps' => $this->manualSteps($selectedTools),
         ];
 
-        self::replacePackageReadme();
-        self::replacePackageAgentsMarkdown();
-        self::replacePlaceholders();
-        self::renamePackageFiles();
-        self::updateComposerJson($selectedFeatures);
-        self::removePath('.agents/skills/skeleton-development');
-        self::copyAgentSkillsToClaude();
+        $this->replacePackageReadme();
+        $this->replacePackageAgentsMarkdown();
+        $this->replacePlaceholders();
+        $this->renamePackageFiles();
+        $this->updateComposerJson($selectedFeatures);
+        $this->removePath('.agents/skills/skeleton-development');
+        $this->copyAgentSkillsToClaude();
 
-        foreach (array_diff(self::featureKeys(), $selectedFeatures) as $featureToRemove) {
-            if (isset(self::feature($featureToRemove)['remove'])) {
-                self::feature($featureToRemove)['remove']();
+        foreach (array_diff($this->featureKeys(), $selectedFeatures) as $featureToRemove) {
+            if (isset($this->feature($featureToRemove)['remove'])) {
+                $this->feature($featureToRemove)['remove']();
             }
         }
 
-        foreach (array_diff(self::toolKeys(), $selectedTools) as $toolToRemove) {
-            if (isset(self::tool($toolToRemove)['remove'])) {
-                self::tool($toolToRemove)['remove']();
+        foreach (array_diff($this->toolKeys(), $selectedTools) as $toolToRemove) {
+            if (isset($this->tool($toolToRemove)['remove'])) {
+                $this->tool($toolToRemove)['remove']();
             }
         }
 
-        self::removeChiselMarkers($selectedFeatures);
-        self::copyAgentsMarkdownToClaude();
-        self::cleanupEmptyDirectories();
+        $this->removeChiselMarkers($selectedFeatures);
+        $this->copyAgentsMarkdownToClaude();
+        $this->cleanupEmptyDirectories();
 
-        $formatResult = self::runCommand([PHP_BINARY, 'vendor/bin/pint', '--quiet']);
+        $formatResult = $this->runCommand([PHP_BINARY, 'vendor/bin/pint', '--quiet']);
 
         if (! $formatResult['success']) {
             return [
@@ -632,28 +847,28 @@ class LaravelPackageSkeletonConfigurator
                     'Code formatting failed: '.$formatResult['output'],
                 ],
                 'github' => $github,
-                'summary' => self::$summary,
+                'summary' => $this->summary,
             ];
         }
 
-        if (self::isGithubMode('create')) {
-            $github = self::createGitHubRepository(self::$githubConfig);
+        if ($this->isGithubMode('create')) {
+            $github = $this->createGitHubRepository($this->githubConfig);
 
             if (! $github['success']) {
                 return [
                     'success' => false,
                     'errors' => [$github['message']],
                     'github' => $github,
-                    'summary' => self::$summary,
+                    'summary' => $this->summary,
                 ];
             }
         }
 
-        if (! self::isGithubMode('create')) {
-            self::removePath('configure.php');
+        if (! $this->isGithubMode('create')) {
+            $this->removePath('configure.php');
         }
 
-        $dumpAutoloadResult = self::runCommand(['composer', 'dump-autoload', '--quiet']);
+        $dumpAutoloadResult = $this->runCommand(['composer', 'dump-autoload', '--quiet']);
 
         if (! $dumpAutoloadResult['success']) {
             return [
@@ -663,18 +878,18 @@ class LaravelPackageSkeletonConfigurator
                         $dumpAutoloadResult['output'],
                 ],
                 'github' => $github,
-                'summary' => self::$summary,
+                'summary' => $this->summary,
             ];
         }
 
-        sort(self::$summary['modified_files']);
-        sort(self::$summary['removed_paths']);
+        sort($this->summary['modified_files']);
+        sort($this->summary['removed_paths']);
 
         return [
             'success' => true,
             'errors' => [],
             'github' => $github,
-            'summary' => self::$summary,
+            'summary' => $this->summary,
         ];
     }
 
@@ -682,7 +897,7 @@ class LaravelPackageSkeletonConfigurator
      * @param  list<string>  $selectedTools
      * @return list<string>
      */
-    private static function manualSteps(array $selectedTools): array
+    private function manualSteps(array $selectedTools): array
     {
         $steps = [];
 
@@ -708,14 +923,9 @@ class LaravelPackageSkeletonConfigurator
         return $steps;
     }
 
-    private static function fieldLabel(string $key): string
+    private function replacePlaceholders(): void
     {
-        return self::metadataFields()[$key]['label'] ?? self::headline($key);
-    }
-
-    private static function replacePlaceholders(): void
-    {
-        $replacements = self::replacements();
+        $replacements = $this->replacements();
         $placeholderPattern =
             '/'.
             implode(
@@ -730,7 +940,7 @@ class LaravelPackageSkeletonConfigurator
             ).
             '/';
 
-        foreach (self::textFiles(self::$rootDir) as $file) {
+        foreach ($this->textFiles($this->rootDir) as $file) {
             $contents = file_get_contents($file);
 
             if ($contents === false) {
@@ -743,41 +953,42 @@ class LaravelPackageSkeletonConfigurator
                 $contents,
             ) ?? $contents;
 
-            self::replaceFileContents($file, $contents, $updated);
+            $this->replaceFileContents($file, $contents, $updated);
         }
     }
 
     /**
      * @return array<string, string>
      */
-    private static function replacements(): array
+    private function replacements(): array
     {
-        $vendorNamespace = self::$metadata['vendor_namespace'];
-        $className = self::$metadata['class_name'];
-        $packageName = self::$metadata['package_name_human'];
-        [$vendorSlug, $packageSlug] = explode('/', self::$metadata['package_name']);
+        $vendorNamespace = $this->metadata->vendorNamespace();
+        $className = $this->metadata->className();
+        $packageName = $this->metadata->packageNameHuman();
+        $vendorSlug = $this->metadata->packageNamespace();
+        $packageSlug = $this->metadata->packageSlug();
 
         return [
-            ':author_name' => self::$metadata['author_name'],
-            ':author_email' => self::$metadata['author_email'],
+            ':author_name' => $this->metadata->authorName(),
+            ':author_email' => $this->metadata->authorEmail(),
             ':author_username' => $vendorSlug,
-            ':vendor_name' => self::headline($vendorSlug),
+            ':vendor_name' => $this->headline($vendorSlug),
             ':vendor_slug' => $vendorSlug,
             ':vendor_namespace' => $vendorNamespace,
             ':package_name_human' => $packageName,
             ':package_slug' => $packageSlug,
-            ':package_description' => self::$metadata['package_description'],
+            ':package_description' => $this->metadata->packageDescription(),
             ':class_name' => $className,
             'vendor-name/skeleton' => $vendorSlug.'/'.$packageSlug,
             'vendor-name' => $vendorSlug,
-            'Author Name' => self::$metadata['author_name'],
-            'author@example.com' => self::$metadata['author_email'],
+            'Author Name' => $this->metadata->authorName(),
+            'author@example.com' => $this->metadata->authorEmail(),
             'VendorName\\Skeleton' => $vendorNamespace.'\\'.$className,
             'VendorName' => $vendorNamespace,
             'SkeletonServiceProvider' => $className.'ServiceProvider',
             'SkeletonCommand' => $className.'Command',
             'Skeleton' => $className,
-            'skeleton_placeholder' => self::snake($packageSlug).'_placeholder',
+            'skeleton_placeholder' => $this->snake($packageSlug).'_placeholder',
             'skeleton' => $packageSlug,
         ];
     }
@@ -785,7 +996,7 @@ class LaravelPackageSkeletonConfigurator
     /**
      * @return list<string>
      */
-    private static function textFiles(string $dir): array
+    private function textFiles(string $dir): array
     {
         $files = [];
         $iterator = new RecursiveIteratorIterator(
@@ -800,10 +1011,10 @@ class LaravelPackageSkeletonConfigurator
                 continue;
             }
 
-            $relativePath = self::relativePath($file->getPathname(), $dir);
+            $relativePath = $this->relativePath($file->getPathname(), $dir);
 
             if (
-                self::isSkippedPath($relativePath) ||
+                $this->isSkippedPath($relativePath) ||
                 $relativePath === 'configure.php'
             ) {
                 continue;
@@ -828,7 +1039,7 @@ class LaravelPackageSkeletonConfigurator
         return $files;
     }
 
-    private static function isSkippedPath(string $relativePath): bool
+    private function isSkippedPath(string $relativePath): bool
     {
         $toSkip = [
             '.git',
@@ -848,11 +1059,11 @@ class LaravelPackageSkeletonConfigurator
         return false;
     }
 
-    private static function renamePackageFiles(): void
+    private function renamePackageFiles(): void
     {
-        $className = self::$metadata['class_name'];
-        $packageSlug = explode('/', self::$metadata['package_name'])[1];
-        $tableName = self::snake($packageSlug).'_placeholder';
+        $className = $this->metadata->className();
+        $packageSlug = $this->metadata->packageSlug();
+        $tableName = $this->snake($packageSlug).'_placeholder';
 
         $toRename = [
             'src/Skeleton.php' => "src/{$className}.php",
@@ -865,10 +1076,10 @@ class LaravelPackageSkeletonConfigurator
         ];
 
         foreach ($toRename as $from => $to) {
-            self::renamePath($from, $to);
+            $this->renamePath($from, $to);
         }
 
-        $migrationPaths = glob(self::$rootDir.'/database/migrations/*create_skeleton_placeholder_table.php') ?: [];
+        $migrationPaths = glob($this->rootDir.'/database/migrations/*create_skeleton_placeholder_table.php') ?: [];
 
         foreach ($migrationPaths as $migration) {
             $destination = implode('/', [
@@ -880,40 +1091,40 @@ class LaravelPackageSkeletonConfigurator
                 ),
             ]);
             rename($migration, $destination);
-            self::trackRemoved($migration);
-            self::trackModified($destination);
+            $this->trackRemoved($migration);
+            $this->trackModified($destination);
         }
     }
 
     /**
      * @param  list<string>  $selectedFeatures
      */
-    private static function updateComposerJson(array $selectedFeatures): void
+    private function updateComposerJson(array $selectedFeatures): void
     {
-        $path = self::$rootDir.'/composer.json';
+        $path = $this->rootDir.'/composer.json';
         $composer = json_decode(
             (string) file_get_contents($path),
             true,
             flags: JSON_THROW_ON_ERROR,
         );
         $namespace = implode('\\', [
-            self::$metadata['vendor_namespace'],
-            self::$metadata['class_name'],
+            $this->metadata->vendorNamespace(),
+            $this->metadata->className(),
         ]).'\\';
 
-        $composer['name'] = self::$metadata['package_name'];
-        $composer['description'] = self::$metadata['package_description'];
+        $composer['name'] = $this->metadata->packageName();
+        $composer['description'] = $this->metadata->packageDescription();
         $composer['keywords'] = array_values(
             array_unique([
                 'laravel',
-                ...explode('/', self::$metadata['package_name']),
+                ...explode('/', $this->metadata->packageName()),
             ]),
         );
-        $composer['homepage'] = 'https://github.com/'.self::$metadata['package_name'];
+        $composer['homepage'] = 'https://github.com/'.$this->metadata->packageName();
         $composer['authors'] = [
             [
-                'name' => self::$metadata['author_name'],
-                'email' => self::$metadata['author_email'],
+                'name' => $this->metadata->authorName(),
+                'email' => $this->metadata->authorEmail(),
                 'role' => 'Developer',
             ],
         ];
@@ -937,7 +1148,7 @@ class LaravelPackageSkeletonConfigurator
         $composer['extra']['laravel']['providers'] = [
             rtrim($namespace, '\\').
                 '\\'.
-                self::$metadata['class_name'].
+                $this->metadata->className().
                 'ServiceProvider',
         ];
 
@@ -945,9 +1156,9 @@ class LaravelPackageSkeletonConfigurator
             unset($composer['extra']['laravel']['aliases']);
         } else {
             $composer['extra']['laravel']['aliases'] = [
-                self::$metadata['class_name'] => rtrim($namespace, '\\').
+                $this->metadata->className() => rtrim($namespace, '\\').
                     '\\Facades\\'.
-                    self::$metadata['class_name'],
+                    $this->metadata->className(),
             ];
         }
 
@@ -967,12 +1178,12 @@ class LaravelPackageSkeletonConfigurator
                 PHP_EOL,
         );
 
-        self::trackModified($path);
+        $this->trackModified($path);
     }
 
-    private static function removeMarkdownSection(string $path, string $heading): void
+    private function removeMarkdownSection(string $path, string $heading): void
     {
-        $absolutePath = self::absolutePath($path);
+        $absolutePath = $this->absolutePath($path);
 
         if (! file_exists($absolutePath)) {
             return;
@@ -983,42 +1194,42 @@ class LaravelPackageSkeletonConfigurator
             '/\n##+ '.preg_quote($heading, '/').'\n.*?(?=\n##+ |\z)/s';
         $updated = preg_replace($pattern, '', $contents) ?? $contents;
 
-        self::replaceFileContents($absolutePath, $contents, $updated);
+        $this->replaceFileContents($absolutePath, $contents, $updated);
     }
 
     /**
      * @param  list<string>  $selectedFeatures
      */
-    private static function removeChiselMarkers(array $selectedFeatures): void
+    private function removeChiselMarkers(array $selectedFeatures): void
     {
-        $provider = sprintf('%s/src/%sServiceProvider.php', self::$rootDir, self::$metadata['class_name']);
-        $providerSections = array_diff(self::featureKeys(), [
+        $provider = sprintf('%s/src/%sServiceProvider.php', $this->rootDir, $this->metadata->className());
+        $providerSections = array_diff($this->featureKeys(), [
             'facade',
             'boost_skill',
         ]);
 
         foreach ($providerSections as $section) {
             if (in_array($section, $selectedFeatures, true)) {
-                self::removeChiselSectionMarkers($provider, $section);
+                $this->removeChiselSectionMarkers($provider, $section);
             }
         }
     }
 
-    private static function removeChiselSection(string $path, string $tag): void
+    private function removeChiselSection(string $path, string $tag): void
     {
-        self::rewriteWithChisel(
+        $this->rewriteWithChisel(
             $path,
-            fn (string $relativePath) => self::chisel()
+            fn (string $relativePath) => $this->chisel()
                 ->file($relativePath)
                 ->removeSection($tag),
         );
     }
 
-    private static function removeChiselSectionMarkers(string $path, string $tag): void
+    private function removeChiselSectionMarkers(string $path, string $tag): void
     {
-        self::rewriteWithChisel(
+        $this->rewriteWithChisel(
             $path,
-            fn (string $relativePath) => self::chisel()
+            fn (string $relativePath) => $this->chisel()
                 ->file($relativePath)
                 ->removeSectionMarkers($tag),
         );
@@ -1027,44 +1238,44 @@ class LaravelPackageSkeletonConfigurator
     /**
      * @param  list<string>  $needles
      */
-    private static function removeLinesContaining(string $path, array $needles): void
+    private function removeLinesContaining(string $path, array $needles): void
     {
-        $absolutePath = self::absolutePath($path);
+        $absolutePath = $this->absolutePath($path);
 
         if (! file_exists($absolutePath)) {
             return;
         }
 
         $contents = (string) file_get_contents($absolutePath);
-        $relativePath = self::relativePath($absolutePath);
+        $relativePath = $this->relativePath($absolutePath);
 
         foreach ($needles as $needle) {
-            self::chisel()->file($relativePath)->removeLinesContaining($needle);
+            $this->chisel()->file($relativePath)->removeLinesContaining($needle);
         }
 
         $updated = (string) file_get_contents($absolutePath);
 
         if ($updated !== $contents) {
-            self::trackModified($absolutePath);
+            $this->trackModified($absolutePath);
         }
     }
 
-    private static function replaceFileContents(string $path, string $contents, string $updated): void
+    private function replaceFileContents(string $path, string $contents, string $updated): void
     {
         if ($updated === $contents) {
             return;
         }
 
-        self::chisel()
-            ->file(self::relativePath(self::absolutePath($path)))
+        $this->chisel()
+            ->file($this->relativePath($this->absolutePath($path)))
             ->replace($contents, $updated);
 
-        self::trackModified($path);
+        $this->trackModified($path);
     }
 
-    private static function rewriteWithChisel(string $path, callable $callback): void
+    private function rewriteWithChisel(string $path, callable $callback): void
     {
-        $absolutePath = self::absolutePath($path);
+        $absolutePath = $this->absolutePath($path);
 
         if (! file_exists($absolutePath)) {
             return;
@@ -1072,24 +1283,24 @@ class LaravelPackageSkeletonConfigurator
 
         $contents = (string) file_get_contents($absolutePath);
 
-        $callback(self::relativePath($absolutePath));
+        $callback($this->relativePath($absolutePath));
 
         if ((string) file_get_contents($absolutePath) !== $contents) {
-            self::trackModified($absolutePath);
+            $this->trackModified($absolutePath);
         }
     }
 
-    private static function removePath(string $relativePath): void
+    private function removePath(string $relativePath): void
     {
-        $path = self::$rootDir.'/'.$relativePath;
+        $path = $this->rootDir.'/'.$relativePath;
 
         if (! file_exists($path)) {
             return;
         }
 
         if (! is_dir($path)) {
-            self::chisel()->file($relativePath)->delete();
-            self::trackRemoved($relativePath);
+            $this->chisel()->file($relativePath)->delete();
+            $this->trackRemoved($relativePath);
 
             return;
         }
@@ -1110,25 +1321,25 @@ class LaravelPackageSkeletonConfigurator
 
         rmdir($path);
 
-        self::trackRemoved($relativePath);
+        $this->trackRemoved($relativePath);
     }
 
-    private static function chisel(): Chisel
+    private function chisel(): Chisel
     {
-        return self::$chisel ??= Chisel::in(self::$rootDir);
+        return $this->chisel ??= Chisel::in($this->rootDir);
     }
 
-    private static function absolutePath(string $path): string
+    private function absolutePath(string $path): string
     {
-        return str_starts_with($path, self::$rootDir.'/')
+        return str_starts_with($path, $this->rootDir.'/')
             ? $path
-            : self::$rootDir.'/'.$path;
+            : $this->rootDir.'/'.$path;
     }
 
-    private static function renamePath(string $from, string $to): void
+    private function renamePath(string $from, string $to): void
     {
-        $source = self::$rootDir.'/'.$from;
-        $destination = self::$rootDir.'/'.$to;
+        $source = $this->rootDir.'/'.$from;
+        $destination = $this->rootDir.'/'.$to;
 
         if (! file_exists($source) || $source === $destination) {
             return;
@@ -1139,40 +1350,40 @@ class LaravelPackageSkeletonConfigurator
         }
 
         rename($source, $destination);
-        self::trackRemoved($from);
-        self::trackModified($to);
+        $this->trackRemoved($from);
+        $this->trackModified($to);
     }
 
-    private static function replacePackageReadme(): void
+    private function replacePackageReadme(): void
     {
-        if (! file_exists(self::$rootDir.'/README_PACKAGE.md')) {
+        if (! file_exists($this->rootDir.'/README_PACKAGE.md')) {
             return;
         }
 
-        self::removePath('README.md');
-        self::renamePath('README_PACKAGE.md', 'README.md');
+        $this->removePath('README.md');
+        $this->renamePath('README_PACKAGE.md', 'README.md');
     }
 
-    private static function replacePackageAgentsMarkdown(): void
+    private function replacePackageAgentsMarkdown(): void
     {
-        if (! file_exists(self::$rootDir.'/AGENTS_PACKAGE.md')) {
+        if (! file_exists($this->rootDir.'/AGENTS_PACKAGE.md')) {
             return;
         }
 
-        self::removePath('AGENTS.md');
-        self::renamePath('AGENTS_PACKAGE.md', 'AGENTS.md');
+        $this->removePath('AGENTS.md');
+        $this->renamePath('AGENTS_PACKAGE.md', 'AGENTS.md');
     }
 
-    private static function copyAgentSkillsToClaude(): void
+    private function copyAgentSkillsToClaude(): void
     {
-        $source = self::$rootDir.'/.agents/skills';
-        $destination = self::$rootDir.'/.claude/skills';
+        $source = $this->rootDir.'/.agents/skills';
+        $destination = $this->rootDir.'/.claude/skills';
 
         if (! is_dir($source)) {
             return;
         }
 
-        self::removePath('.claude/skills');
+        $this->removePath('.claude/skills');
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator(
@@ -1201,24 +1412,24 @@ class LaravelPackageSkeletonConfigurator
             }
 
             copy($item->getPathname(), $target);
-            self::trackModified($target);
+            $this->trackModified($target);
         }
     }
 
-    private static function copyAgentsMarkdownToClaude(): void
+    private function copyAgentsMarkdownToClaude(): void
     {
-        $source = self::$rootDir.'/AGENTS.md';
-        $destination = self::$rootDir.'/CLAUDE.md';
+        $source = $this->rootDir.'/AGENTS.md';
+        $destination = $this->rootDir.'/CLAUDE.md';
 
         if (! file_exists($source)) {
             return;
         }
 
         copy($source, $destination);
-        self::trackModified($destination);
+        $this->trackModified($destination);
     }
 
-    private static function cleanupEmptyDirectories(): void
+    private function cleanupEmptyDirectories(): void
     {
         foreach (
             [
@@ -1230,7 +1441,7 @@ class LaravelPackageSkeletonConfigurator
                 '.github',
             ] as $relativePath
         ) {
-            $path = self::$rootDir.'/'.$relativePath;
+            $path = $this->rootDir.'/'.$relativePath;
 
             if (
                 is_dir($path) &&
@@ -1242,7 +1453,7 @@ class LaravelPackageSkeletonConfigurator
                 ) === 0
             ) {
                 rmdir($path);
-                self::trackRemoved($relativePath);
+                $this->trackRemoved($relativePath);
             }
         }
     }
@@ -1251,16 +1462,16 @@ class LaravelPackageSkeletonConfigurator
      * @param  array<string, mixed>  $github
      * @return array<string, mixed>
      */
-    private static function createGitHubRepository(array $github): array
+    private function createGitHubRepository(array $github): array
     {
         $visibility = match ($github['visibility'] ?? '') {
             'public' => 'public',
             default => 'private',
         };
-        $repository = self::$metadata['package_name'];
+        $repository = $this->metadata->packageName();
         $commands = [];
         $runner = $github['runner'] ?? null;
-        $configurePath = self::$rootDir.'/configure.php';
+        $configurePath = $this->rootDir.'/configure.php';
         $configureContents = file_exists($configurePath)
             ? file_get_contents($configurePath)
             : false;
@@ -1275,12 +1486,12 @@ class LaravelPackageSkeletonConfigurator
         ];
         $insideGitCommand = ['git', 'rev-parse', '--is-inside-work-tree'];
         $commands[] = $insideGitCommand;
-        $insideGitResult = self::runGitHubCommand($insideGitCommand, $runner);
+        $insideGitResult = $this->runGitHubCommand($insideGitCommand, $runner);
 
         if (! ($insideGitResult['success'] ?? false)) {
             $initCommand = ['git', 'init'];
             $commands[] = $initCommand;
-            $initResult = self::runGitHubCommand($initCommand, $runner);
+            $initResult = $this->runGitHubCommand($initCommand, $runner);
 
             if (! ($initResult['success'] ?? false)) {
                 return [
@@ -1297,10 +1508,10 @@ class LaravelPackageSkeletonConfigurator
 
         $removeOriginCommand = ['git', 'remote', 'remove', 'origin'];
         $commands[] = $removeOriginCommand;
-        self::runGitHubCommand($removeOriginCommand, $runner);
+        $this->runGitHubCommand($removeOriginCommand, $runner);
 
         $commands[] = $createCommand;
-        $result = self::runGitHubCommand($createCommand, $runner);
+        $result = $this->runGitHubCommand($createCommand, $runner);
 
         if (! ($result['success'] ?? false)) {
             return [
@@ -1314,16 +1525,16 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        self::removePath('configure.php');
+        $this->removePath('configure.php');
 
         $gitCommands = [
             ['git', 'add', '--all'],
             [
                 'git',
                 '-c',
-                'user.name='.self::$metadata['author_name'],
+                'user.name='.$this->metadata->authorName(),
                 '-c',
-                'user.email='.self::$metadata['author_email'],
+                'user.email='.$this->metadata->authorEmail(),
                 'commit',
                 '-m',
                 'Initial commit',
@@ -1334,10 +1545,10 @@ class LaravelPackageSkeletonConfigurator
 
         foreach ($gitCommands as $gitCommand) {
             $commands[] = $gitCommand;
-            $gitResult = self::runGitHubCommand($gitCommand, $runner);
+            $gitResult = $this->runGitHubCommand($gitCommand, $runner);
 
             if (! ($gitResult['success'] ?? false)) {
-                self::restoreConfigureScript(
+                $this->restoreConfigureScript(
                     $configurePath,
                     $configureContents,
                 );
@@ -1366,18 +1577,7 @@ class LaravelPackageSkeletonConfigurator
         ];
     }
 
-    /**
-     * @param  list<string>  $command
-     * @return array<string, mixed>
-     */
-    private static function runGitHubCommand(array $command, mixed $runner): array
-    {
-        return is_callable($runner)
-            ? $runner($command)
-            : self::runCommand($command);
-    }
-
-    private static function restoreConfigureScript(string $path, string|false $contents): void
+    private function restoreConfigureScript(string $path, string|false $contents): void
     {
         if ($contents === false || file_exists($path)) {
             return;
@@ -1386,91 +1586,35 @@ class LaravelPackageSkeletonConfigurator
         file_put_contents($path, $contents);
     }
 
-    /**
-     * @param  list<string>  $command
-     * @return array{success: bool, output: string}
-     */
-    private static function runCommand(array $command, ?string $cwd = null): array
+    private function isNonInteractive(): bool
     {
-        $cwd ??= self::$rootDir;
-
-        $process = proc_open(
-            implode(' ', array_map('escapeshellarg', $command)),
-            [
-                1 => ['pipe', 'w'],
-                2 => ['pipe', 'w'],
-            ],
-            $pipes,
-            $cwd,
-        );
-
-        if (! is_resource($process)) {
-            return ['success' => false, 'output' => 'Unable to start process.'];
-        }
-
-        $output = stream_get_contents($pipes[1]).stream_get_contents($pipes[2]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-
-        return [
-            'success' => proc_close($process) === 0,
-            'output' => trim((string) $output),
-        ];
-    }
-
-    private static function commandExists(string $command): bool
-    {
-        [$check, $devnull] = match (PHP_OS_FAMILY) {
-            'Windows' => ['where', 'NUL'],
-            default => ['command -v', '/dev/null'],
-        };
-
-        $result = shell_exec(
-            sprintf('%s %s 2> %s', $check, escapeshellarg($command), $devnull),
-        );
-
-        return trim((string) $result) !== '';
-    }
-
-    private static function ghIsAuthenticated(): bool
-    {
-        $result = self::runCommand(
-            ['gh', 'auth', 'status'],
-            getcwd() ?: __DIR__,
-        );
-
-        return $result['success'];
-    }
-
-    private static function isNonInteractive(): bool
-    {
-        return self::input()->getOption('no-interaction') ||
+        return $this->input()->getOption('no-interaction') ||
             getenv('COMPOSER_NO_INTERACTION') === '1' ||
             AgentDetector::detect()->isAgent;
     }
 
-    private static function hasNonInteractiveFlags(): bool
+    private function hasNonInteractiveFlags(): bool
     {
         return getenv('COMPOSER_NO_INTERACTION') === '1' ||
             in_array('--no-interaction', $_SERVER['argv'] ?? []) ||
             in_array('-n', $_SERVER['argv'] ?? []);
     }
 
-    private static function definition(): InputDefinition
+    private function definition(): InputDefinition
     {
-        return self::$definition ??= self::getInputDefinition();
+        return $this->definition ??= $this->getInputDefinition();
     }
 
-    private static function getInputDefinition(): InputDefinition
+    private function getInputDefinition(): InputDefinition
     {
         $featureOptions = array_map(
             fn (string $key) => new InputOption(
-                self::keyToOption($key),
+                $this->keyToOption($key),
                 null,
                 InputOption::VALUE_NONE,
-                sprintf('Include %s', self::feature($key)['label']),
+                sprintf('Include %s', $this->feature($key)['label']),
             ),
-            self::featureKeys(),
+            $this->featureKeys(),
         );
 
         $metadataOptions = array_map(
@@ -1480,8 +1624,8 @@ class LaravelPackageSkeletonConfigurator
                 InputOption::VALUE_OPTIONAL,
                 $field['label'],
             ),
-            array_keys(self::metadataFields()),
-            array_values(self::metadataFields()),
+            array_keys($this->metadata->fields()),
+            array_values($this->metadata->fields()),
         );
 
         return new InputDefinition([
@@ -1492,16 +1636,16 @@ class LaravelPackageSkeletonConfigurator
         ]);
     }
 
-    private static function input(): ArgvInput
+    private function input(): ArgvInput
     {
-        return self::$input ??= new ArgvInput(null, self::definition());
+        return $this->input ??= new ArgvInput(null, $this->definition());
     }
 
-    private static function printHelp(): void
+    private function printHelp(): void
     {
         $lines = ['Usage: php configure.php [options]', '', 'Options:'];
 
-        foreach (self::definition()->getOptions() as $option) {
+        foreach ($this->definition()->getOptions() as $option) {
             $shortcut = $option->getShortcut() ? sprintf('-%s, ', $option->getShortcut()) : '    ';
             $lines[] = sprintf('  %s--%-24s%s', $shortcut, $option->getName(), $option->getDescription());
         }
@@ -1509,81 +1653,27 @@ class LaravelPackageSkeletonConfigurator
         fwrite(STDOUT, implode(PHP_EOL, $lines).PHP_EOL);
     }
 
-    private static function ghUsername(): ?string
+    private function trackModified(string $path): void
     {
-        if (! self::commandExists('gh') || ! self::ghIsAuthenticated()) {
-            return null;
-        }
-
-        $result = self::runCommand(
-            ['gh', 'api', 'user', '--jq', '.login'],
-            getcwd() ?: __DIR__,
-        );
-
-        if (! $result['success']) {
-            return null;
-        }
-
-        return $result['output'];
+        $this->addToSummaryByKey('modified_files', $this->relativePath($path));
     }
 
-    /** @return array<string, string> */
-    private static function defaults(): array
+    private function trackRemoved(string $path): void
     {
-        return array_map(
-            fn (string $key) => self::feature($key)['default'](),
-            self::features(),
+        $this->addToSummaryByKey('removed_paths', $this->relativePath($path));
+    }
+
+    private function addToSummaryByKey(string $key, string $value): void
+    {
+        $this->summary[$key][] = $value;
+        $this->summary[$key] = array_values(
+            array_unique($this->summary[$key]),
         );
     }
 
-    private static function slug(string $value): string
+    private function relativePath(string $path, ?string $dir = null): string
     {
-        return trim(
-            strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '-', $value)),
-            '-',
-        );
-    }
-
-    private static function studly(string $value): string
-    {
-        return str_replace(
-            ' ',
-            '',
-            ucwords(str_replace(['-', '_'], ' ', $value)),
-        );
-    }
-
-    private static function headline(string $value): string
-    {
-        return ucwords(str_replace(['-', '_'], ' ', $value));
-    }
-
-    private static function snake(string $value): string
-    {
-        return str_replace('-', '_', self::slug($value));
-    }
-
-    private static function trackModified(string $path): void
-    {
-        self::addToSummaryByKey('modified_files', self::relativePath($path));
-    }
-
-    private static function trackRemoved(string $path): void
-    {
-        self::addToSummaryByKey('removed_paths', self::relativePath($path));
-    }
-
-    protected static function addToSummaryByKey(string $key, string $value): void
-    {
-        self::$summary[$key][] = $value;
-        self::$summary[$key] = array_values(
-            array_unique(self::$summary[$key]),
-        );
-    }
-
-    private static function relativePath(string $path, ?string $dir = null): string
-    {
-        $dir = str_replace('\\', '/', $dir ?? self::$rootDir);
+        $dir = str_replace('\\', '/', $dir ?? $this->rootDir);
         $path = str_replace('\\', '/', $path);
 
         if (! str_starts_with($path, $dir.'/')) {
@@ -1600,5 +1690,5 @@ if (
     PHP_SAPI === 'cli' &&
     realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__
 ) {
-    exit(LaravelPackageSkeletonConfigurator::run(__DIR__));
+    exit((new LaravelPackageSkeletonConfigurator(__DIR__))->run());
 }
