@@ -238,21 +238,17 @@ class Metadata
     public function fields(): array
     {
         $directoryName = basename($this->rootDir);
-        $packageSlug = $this->slug($directoryName === 'package-skeleton' ? 'my-package' : $directoryName);
-        $authorName = trim((string) shell_exec('git config user.name')) ?: 'Vendor Name';
-        $authorEmail = trim((string) shell_exec('git config user.email')) ?: 'author@example.com';
-        $vendorSlug = $this->ghUsername() ?: $this->slug($authorName) ?: 'vendor-name';
 
         return [
             'author_name' => [
                 'label' => 'Author name',
                 'hint' => 'Used in composer.json credits and README attribution.',
-                'default' => fn () => $this->input->getOption('author-name') ?? $authorName,
+                'default' => fn () => $this->input->getOption('author-name') ?? trim((string) shell_exec('git config user.name')) ?: 'Vendor Name',
             ],
             'author_email' => [
                 'label' => 'Author email',
                 'hint' => 'Used in composer.json package author metadata.',
-                'default' => fn () => $this->input->getOption('author-email') ?? $authorEmail,
+                'default' => fn () => $this->input->getOption('author-email') ?? trim((string) shell_exec('git config user.email')) ?: 'author@example.com',
                 'validate' => function ($value) {
                     if (filter_var($value, FILTER_VALIDATE_EMAIL) === false) {
                         return 'Must be a valid email address.';
@@ -264,7 +260,10 @@ class Metadata
             'package_name' => [
                 'label' => 'Package name',
                 'hint' => 'Used in composer.json and as the package name in Packagist.',
-                'default' => fn () => $this->input->getOption('package-name') ?? "$vendorSlug/$packageSlug",
+                'default' => fn () => $this->input->getOption('package-name') ?? implode('/', [
+                    $this->ghUsername() ?: $this->slug($this->authorName()) ?: 'vendor-name',
+                    $this->slug($directoryName === 'package-skeleton' ? 'my-package' : $directoryName),
+                ]),
                 'validate' => function ($value) {
                     if (! preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/', $value)) {
                         return 'Package name must be in the format vendor/package.';
