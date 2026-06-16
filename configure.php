@@ -346,6 +346,194 @@ class Metadata
     }
 }
 
+class Feature
+{
+    private mixed $removeCallback = null;
+
+    public function __construct(
+        public readonly string $key,
+        public readonly string $label,
+        public readonly ?string $description = null,
+    ) {
+        //
+    }
+
+    public static function from(string $key, string $label, ?string $description = null): self
+    {
+        return new self(
+            key: $key,
+            label: $label,
+            description: $description,
+        );
+    }
+
+    public function onRemove(callable $callback): self
+    {
+        $this->removeCallback = $callback;
+
+        return $this;
+    }
+
+    public function remove(): void
+    {
+        if (isset($this->removeCallback)) {
+            ($this->removeCallback)($this);
+        }
+    }
+}
+
+class Features
+{
+    private array $features = [];
+
+    public function __construct()
+    {
+        //
+    }
+
+    public function add(Feature $feature): void
+    {
+        $this->features[$feature->key] = $feature;
+    }
+
+    public function keys(): array
+    {
+        return array_keys($this->features);
+    }
+
+    public function labels(): array
+    {
+        return array_map(
+            fn (Feature $feature) => $feature->label,
+            $this->features,
+        );
+    }
+
+    public function get(string $key): ?Feature
+    {
+        return $this->features[$key] ?? null;
+    }
+}
+
+class Tool
+{
+    private mixed $removeCallback = null;
+
+    private mixed $addCallback = null;
+
+    public function __construct(
+        public readonly string $key,
+        public readonly string $label,
+        public readonly ?string $description = null,
+        protected array $manualSteps = [],
+    ) {
+        //
+    }
+
+    public static function from(
+        string $key,
+        string $label,
+        ?string $description = null,
+        array $manualSteps = [],
+    ): self {
+        return new self(
+            key: $key,
+            label: $label,
+            description: $description,
+            manualSteps: $manualSteps,
+        );
+    }
+
+    public function clearManualSteps(): void
+    {
+        $this->manualSteps = [];
+    }
+
+    public function removeManualStep(int $index): void
+    {
+        array_splice($this->manualSteps, $index, 1);
+    }
+
+    public function manualSteps(): array
+    {
+        return $this->manualSteps;
+    }
+
+    public function onRemove(callable $callback): self
+    {
+        $this->removeCallback = $callback;
+
+        return $this;
+    }
+
+    public function onAdd(callable $callback): self
+    {
+        $this->addCallback = $callback;
+
+        return $this;
+    }
+
+    public function remove(): void
+    {
+        $this->clearManualSteps();
+
+        if (isset($this->removeCallback)) {
+            ($this->removeCallback)($this);
+        }
+    }
+
+    public function add(): void
+    {
+        if (isset($this->addCallback)) {
+            ($this->addCallback)($this);
+        }
+    }
+}
+
+class Tools
+{
+    private array $tools = [];
+
+    public function __construct()
+    {
+        //
+    }
+
+    public function add(Tool $tool): void
+    {
+        $this->tools[$tool->key] = $tool;
+    }
+
+    public function keys(): array
+    {
+        return array_keys($this->tools);
+    }
+
+    public function labels(): array
+    {
+        return array_map(
+            fn (Tool $tool) => $tool->label,
+            $this->tools,
+        );
+    }
+
+    public function get(string $key): ?Tool
+    {
+        return $this->tools[$key] ?? null;
+    }
+
+    public function manualSteps(): array
+    {
+        $steps = [];
+
+        foreach ($this->tools as $tool) {
+            $steps = array_merge($steps, $tool->manualSteps());
+        }
+
+        return $steps;
+    }
+}
+
 class LaravelPackageSkeletonConfigurator
 {
     use FormatsStrings, InteractsWithGitHub;
@@ -379,10 +567,18 @@ class LaravelPackageSkeletonConfigurator
 
     private Metadata $metadata;
 
+    private Features $features;
+
+    private Tools $tools;
+
     public function __construct(protected string $rootDir)
     {
         $this->rootDir = rtrim($rootDir, DIRECTORY_SEPARATOR);
         $this->metadata = new MetaData($this->rootDir);
+        $this->features = new Features;
+        $this->tools = new Tools;
+        $this->registerFeatures();
+        $this->registerTools();
     }
 
     public function run(): int
@@ -446,20 +642,20 @@ class LaravelPackageSkeletonConfigurator
 
         $this->metadata->collect();
 
-        $defaultFeatures = $this->flaggedFeatures() ?: $this->featureKeys();
+        $defaultFeatures = $this->flaggedFeatures() ?: $this->features->keys();
 
         $features = multiselect(
             'Package Features',
-            array_map(fn ($feature) => $feature['label'], $this->features()),
+            $this->features->labels(),
             $defaultFeatures,
-            info: fn (string $key) => $this->features()[$key]['description'] ?? '',
+            info: fn (string $key) => $this->features->get($key)->description ?? '',
         );
 
         $tools = multiselect(
             'Package Tools',
-            array_map(fn ($tool) => $tool['label'], $this->tools()),
-            $this->toolKeys(),
-            info: fn (string $key) => $this->tools()[$key]['description'] ?? '',
+            $this->tools->labels(),
+            $this->tools->keys(),
+            info: fn (string $key) => $this->tools->get($key)->description ?? '',
         );
 
         $this->setupGithubConfig();
@@ -514,8 +710,8 @@ class LaravelPackageSkeletonConfigurator
         $this->metadata->useDefaults();
 
         $result = $this->configure([
-            'features' => $this->flaggedFeatures() ?: $this->featureKeys(),
-            'tools' => $this->toolKeys(),
+            'features' => $this->flaggedFeatures() ?: $this->features->keys(),
+            'tools' => $this->tools->keys(),
         ]);
 
         $this->writeJson($this->nonInteractivePayload($result));
@@ -545,7 +741,7 @@ class LaravelPackageSkeletonConfigurator
     {
         return array_values(
             array_filter(
-                $this->featureKeys(),
+                $this->features->keys(),
                 fn (string $feature): bool => (bool) $this->input()->getOption($this->keyToOption($feature)),
             ),
         );
@@ -610,8 +806,7 @@ class LaravelPackageSkeletonConfigurator
         ];
     }
 
-    /** @return array<string, array{label: string, description?: string, remove?: callable}> */
-    private function features(): array
+    private function registerFeatures(): void
     {
         $provider = sprintf('%s/src/%sServiceProvider.php', $this->rootDir, $this->metadata->className() ?? '');
         $readme = $this->rootDir.'/README.md';
@@ -619,148 +814,163 @@ class LaravelPackageSkeletonConfigurator
         $docsIndex = $this->rootDir.'/docs/index.md';
         $docsInstallation = $this->rootDir.'/docs/getting-started/installation.md';
 
-        return [
-            'config' => [
-                'label' => 'Config file',
-                'remove' => fn () => [
-                    $this->removePath('config'),
-                    $this->removeChiselSection($provider, 'config'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Configuration File'),
-                    $this->removePath('docs/getting-started/configuration.md'),
-                    $this->removeLinesContaining($docsConfig, ['Configuration']),
-                    $this->removeLinesContaining($docsIndex, ['Configuration']),
-                    $this->removeLinesContaining($docsInstallation, ['-config']),
-                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - config']),
-                ],
-            ],
-            'routes' => [
-                'label' => 'Routes',
-                'remove' => fn () => [
-                    $this->removePath('routes'),
-                    $this->removeChiselSection($provider, 'routes'),
-                    $this->removeLinesContaining($readme, ['route', 'Route']),
-                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - routes']),
-                ],
-            ],
-            'views' => [
-                'label' => 'Views',
-                'remove' => fn () => [
-                    $this->removePath('resources/views'),
-                    $this->removeChiselSection($provider, 'views'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Views'),
-                    $this->removeLinesContaining($docsInstallation, ['-views']),
-                ],
-            ],
-            'translations' => [
-                'label' => 'Translations',
-                'remove' => fn () => [
-                    $this->removePath('lang'),
-                    $this->removeChiselSection($provider, 'translations'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Translations'),
-                    $this->removeLinesContaining($docsInstallation, ['-lang']),
-                ],
-            ],
-            'migrations' => [
-                'label' => 'Migrations',
-                'remove' => fn () => [
-                    $this->removePath('database/migrations'),
-                    $this->removeChiselSection($provider, 'migrations'),
-                    $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
-                    $this->removeLinesContaining($docsInstallation, ['-migrations']),
-                    $this->removeMarkdownSection($docsInstallation, 'Running Migrations'),
-                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
-                ],
-            ],
-            'assets' => [
-                'label' => 'Assets',
-                'remove' => fn () => [
-                    $this->removePath('public'),
-                    $this->removeChiselSection($provider, 'assets'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
-                    $this->removeLinesContaining($docsInstallation, ['-assets']),
-                ],
-            ],
-            'commands' => [
-                'label' => 'Commands',
-                'remove' => fn () => [
-                    $this->removePath('src/Console/Commands'),
-                    $this->removeChiselSection($provider, 'commands'),
-                    $this->removeLinesContaining($readme, ['command', 'Command']),
-                ],
-            ],
-            'facade' => [
-                'label' => 'Facade',
-                'remove' => fn () => [
-                    $this->removePath('src/Facades'),
-                    $this->removeLinesContaining($readme, ['facade', 'Facade']),
-                ],
-            ],
-            'boost_skill' => [
-                'label' => 'Boost Skill',
-                'description' => 'Add a package skill for Laravel Boost',
-                'remove' => fn () => [
-                    $this->removePath('resources/boost/skills'),
-                    $this->removePath('.agents/skills/package-generate-skill'),
-                    $this->removePath('.claude/skills/package-generate-skill'),
-                    $this->removeLinesContaining($readme, ['Boost', 'boost']),
-                    $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['Boost', 'boost']),
-                ],
-            ],
-        ];
+        $this->features->add(
+            Feature::from(
+                key: 'config',
+                label: 'Config file',
+            )->onRemove(fn () => [
+                $this->removePath('config'),
+                $this->removeChiselSection($provider, 'config'),
+                $this->removeMarkdownSection($readme, 'Publishing the Configuration File'),
+                $this->removePath('docs/getting-started/configuration.md'),
+                $this->removeLinesContaining($docsConfig, ['Configuration']),
+                $this->removeLinesContaining($docsIndex, ['Configuration']),
+                $this->removeLinesContaining($docsInstallation, ['-config']),
+                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - config']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'routes',
+                label: 'Routes',
+            )->onRemove(fn () => [
+                $this->removePath('routes'),
+                $this->removeChiselSection($provider, 'routes'),
+                $this->removeLinesContaining($readme, ['route', 'Route']),
+                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - routes']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'views',
+                label: 'Views',
+            )->onRemove(fn () => [
+                $this->removePath('resources/views'),
+                $this->removeChiselSection($provider, 'views'),
+                $this->removeMarkdownSection($readme, 'Publishing the Views'),
+                $this->removeLinesContaining($docsInstallation, ['-views']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'translations',
+                label: 'Translations',
+            )->onRemove(fn () => [
+                $this->removePath('lang'),
+                $this->removeChiselSection($provider, 'translations'),
+                $this->removeMarkdownSection($readme, 'Publishing the Translations'),
+                $this->removeLinesContaining($docsInstallation, ['-lang']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'migrations',
+                label: 'Migrations',
+            )->onRemove(fn () => [
+                $this->removePath('database/migrations'),
+                $this->removeChiselSection($provider, 'migrations'),
+                $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
+                $this->removeLinesContaining($docsInstallation, ['-migrations']),
+                $this->removeMarkdownSection($docsInstallation, 'Running Migrations'),
+                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'assets',
+                label: 'Assets',
+            )->onRemove(fn () => [
+                $this->removePath('public'),
+                $this->removeChiselSection($provider, 'assets'),
+                $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
+                $this->removeLinesContaining($docsInstallation, ['-assets']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'commands',
+                label: 'Commands',
+            )->onRemove(fn () => [
+                $this->removePath('src/Console/Commands'),
+                $this->removeChiselSection($provider, 'commands'),
+                $this->removeLinesContaining($readme, ['command', 'Command']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'facade',
+                label: 'Facade',
+            )->onRemove(fn () => [
+                $this->removePath('src/Facades'),
+                $this->removeLinesContaining($readme, ['facade', 'Facade']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'boost_skill',
+                label: 'Boost Skill',
+                description: 'Add a package skill for Laravel Boost',
+            )->onRemove(fn () => [
+                $this->removePath('resources/boost/skills'),
+                $this->removePath('.agents/skills/package-generate-skill'),
+                $this->removePath('.claude/skills/package-generate-skill'),
+                $this->removeLinesContaining($readme, ['Boost', 'boost']),
+                $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['Boost', 'boost']),
+            ]),
+        );
     }
 
-    /**
-     * @return array{label: string, description?: string, remove?: callable}
-     */
-    private function feature(string $key): array
-    {
-        return $this->features()[$key];
-    }
-
-    /**
-     * @return array{label: string, description?: string, remove?: callable}
-     */
-    private function tool(string $key): array
-    {
-        return $this->tools()[$key];
-    }
-
-    /** @return list<string> */
-    private function featureKeys(): array
-    {
-        return array_keys($this->features());
-    }
-
-    /** @return array<string, array{label: string, description?: string, remove?: callable}> */
-    private function tools(): array
+    private function registerTools()
     {
         $readme = $this->rootDir.'/README.md';
         $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
         $docsIndex = $this->rootDir.'/docs/index.md';
 
-        return [
-            'dependabot' => [
-                'label' => 'Dependabot Pull Requests',
-                'remove' => fn () => [
+        $this->tools->add(
+            Tool::from(
+                key: 'dependabot',
+                label: 'Dependabot Pull Requests',
+                description: 'Automated dependency updates',
+                manualSteps: [
+                    'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.',
+                ],
+            )
+                ->onRemove(fn () => [
                     $this->removePath('.github/dependabot.yml'),
                     $this->removeLinesContaining($readme, ['Dependabot']),
                     $this->removeLinesContaining($this->rootDir.'/docs/index.md', ['Dependabot']),
-                ],
-                'add' => function () {
-                    $this->manualSteps[] = 'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
-                },
-                'description' => 'Automated dependency updates',
-            ],
-            'issue_template' => [
-                'label' => 'Issue Template',
-                'remove' => fn () => $this->removePath(
+                ]),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'issue_template',
+                label: 'Issue Template',
+            )
+                ->onRemove(fn () => $this->removePath(
                     '.github/ISSUE_TEMPLATE',
-                ),
-            ],
-            'changelog' => [
-                'label' => 'Changelog',
-                'description' => 'Automated changelog generation',
-                'remove' => fn () => [
+                )),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'changelog',
+                label: 'Changelog',
+                description: 'Automated changelog generation',
+                manualSteps: [
+                    'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.',
+                    'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.',
+                ],
+            )->onRemove(
+                fn () => [
                     $this->removePath('CHANGELOG.md'),
                     $this->removePath('.github/workflows/update-changelog.yml'),
                     $this->removePath('.github/release.yml'),
@@ -770,16 +980,9 @@ class LaravelPackageSkeletonConfigurator
                     $this->removeMarkdownSection($readme, 'Changelog'),
                     $this->removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
                 ],
-                'add' => function () {
-                    $manualSteps = [
-                        'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.',
-                        'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.',
-                    ];
-
+            )
+                ->onAdd(function (Tool $tool) {
                     if (! $this->ghRepoExists($this->metadata->packageName())) {
-                        $this->manualSteps[] = $manualSteps[0];
-                        $this->manualSteps[] = $manualSteps[1];
-
                         return;
                     }
 
@@ -810,28 +1013,39 @@ class LaravelPackageSkeletonConfigurator
                         }
                     }
 
-                    if ($failed) {
-                        $this->manualSteps[] = $manualSteps[0];
+                    if (! $failed) {
+                        $tool->removeManualStep(0);
                     }
+                }),
+        );
 
-                    $this->manualSteps[] = $manualSteps[1];
-                },
-            ],
-            'funding' => [
-                'label' => 'Funding',
-                'remove' => fn () => $this->removePath('.github/FUNDING.yml'),
-            ],
-            'security_policy' => [
-                'label' => 'Security Policy',
-                'remove' => fn () => [
-                    $this->removePath('.github/SECURITY.md'),
-                    $this->removeMarkdownSection($readme, 'Security Vulnerabilities'),
+        $this->tools->add(
+            Tool::from(
+                key: 'funding',
+                label: 'Funding',
+            )->onRemove(fn () => $this->removePath('.github/FUNDING.yml')),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'security_policy',
+                label: 'Security Policy',
+            )->onRemove(fn () => [
+                $this->removePath('.github/SECURITY.md'),
+                $this->removeMarkdownSection($readme, 'Security Vulnerabilities'),
+            ]),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'documentation',
+                label: 'Documentation',
+                description: 'Docs via VitePress + GitHub Pages',
+                manualSteps: [
+                    'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.',
                 ],
-            ],
-            'documentation' => [
-                'label' => 'Documentation',
-                'description' => 'Docs via VitePress + GitHub Pages',
-                'remove' => fn () => [
+            )
+                ->onRemove(fn () => [
                     $this->removePath('docs'),
                     $this->removePath('package.json'),
                     $this->removePath('.agents/skills/package-docs'),
@@ -857,14 +1071,9 @@ class LaravelPackageSkeletonConfigurator
                         '/package.json',
                         'docs/.vitepress/dist',
                     ]),
-                ],
-
-                'add' => function () {
-                    $manualStep = 'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.';
-
+                ])
+                ->onAdd(function (Tool $tool) {
                     if (! $this->ghRepoExists($this->metadata->packageName())) {
-                        $this->manualSteps[] = $manualStep;
-
                         return;
                     }
 
@@ -876,18 +1085,11 @@ class LaravelPackageSkeletonConfigurator
                         'build_type=workflow',
                     ]);
 
-                    if (! $result['success']) {
-                        $this->manualSteps[] = $manualStep;
+                    if ($result['success']) {
+                        $tool->clearManualSteps();
                     }
-                },
-            ],
-        ];
-    }
-
-    /** @return list<string> */
-    private function toolKeys(): array
-    {
-        return array_keys($this->tools());
+                }),
+        );
     }
 
     /**
@@ -897,9 +1099,9 @@ class LaravelPackageSkeletonConfigurator
     private function configure(array $options): array
     {
         $selectedFeatures = array_values(
-            $options['features'] ?? $this->featureKeys(),
+            $options['features'] ?? $this->features->keys(),
         );
-        $selectedTools = array_values($options['tools'] ?? $this->toolKeys());
+        $selectedTools = array_values($options['tools'] ?? $this->tools->keys());
 
         $github = $this->defaultGithubResult();
 
@@ -909,7 +1111,7 @@ class LaravelPackageSkeletonConfigurator
             'selected_tools' => $selectedTools,
             'removed_paths' => [],
             'modified_files' => [],
-            'manual_steps' => $this->manualSteps,
+            'manual_steps' => [],
         ];
 
         $this->replacePackageReadme();
@@ -920,16 +1122,12 @@ class LaravelPackageSkeletonConfigurator
         $this->removePath('.agents/skills/skeleton-development');
         $this->copyAgentSkillsToClaude();
 
-        foreach (array_diff($this->featureKeys(), $selectedFeatures) as $featureToRemove) {
-            if (isset($this->feature($featureToRemove)['remove'])) {
-                $this->feature($featureToRemove)['remove']();
-            }
+        foreach (array_diff($this->features->keys(), $selectedFeatures) as $featureToRemove) {
+            $this->features->get($featureToRemove)->remove();
         }
 
-        foreach (array_diff($this->toolKeys(), $selectedTools) as $toolToRemove) {
-            if (isset($this->tool($toolToRemove)['remove'])) {
-                $this->tool($toolToRemove)['remove']();
-            }
+        foreach (array_diff($this->tools->keys(), $selectedTools) as $toolToRemove) {
+            $this->tools->get($toolToRemove)->remove();
         }
 
         $this->removeChiselMarkers($selectedFeatures);
@@ -963,28 +1161,21 @@ class LaravelPackageSkeletonConfigurator
         }
 
         foreach ($selectedTools as $toolToAdd) {
-            if (isset($this->tool($toolToAdd)['add'])) {
-                $this->tool($toolToAdd)['add']();
-            }
+            $this->tools->get($toolToAdd)->add();
         }
+
+        $this->summary['manual_steps'] = $this->tools->manualSteps();
 
         if (! $this->isGithubMode('create')) {
             $this->removePath('configure.php');
         }
 
-        $dumpAutoloadResult = $this->runCommand(['composer', 'dump-autoload', '--quiet']);
+        $composerBinary = getenv('COMPOSER_BINARY');
+        $composerCommand = $composerBinary !== false
+            ? [PHP_BINARY, $composerBinary]
+            : ['composer'];
 
-        if (! $dumpAutoloadResult['success']) {
-            return [
-                'success' => false,
-                'errors' => [
-                    'Composer autoload generation failed: '.
-                        $dumpAutoloadResult['output'],
-                ],
-                'github' => $github,
-                'summary' => $this->summary,
-            ];
-        }
+        $this->runCommand([...$composerCommand, 'dump-autoload', '--quiet']);
 
         sort($this->summary['modified_files']);
         sort($this->summary['removed_paths']);
@@ -1278,7 +1469,7 @@ class LaravelPackageSkeletonConfigurator
     private function removeChiselMarkers(array $selectedFeatures): void
     {
         $provider = sprintf('%s/src/%sServiceProvider.php', $this->rootDir, $this->metadata->className());
-        $providerSections = array_diff($this->featureKeys(), [
+        $providerSections = array_diff($this->features->keys(), [
             'facade',
             'boost_skill',
         ]);
@@ -1406,7 +1597,10 @@ class LaravelPackageSkeletonConfigurator
 
     private function absolutePath(string $path): string
     {
-        return str_starts_with($path, $this->rootDir.'/')
+        $normalizedPath = str_replace('\\', '/', $path);
+        $normalizedRoot = str_replace('\\', '/', $this->rootDir);
+
+        return str_starts_with($normalizedPath, $normalizedRoot.'/')
             ? $path
             : $this->rootDir.'/'.$path;
     }
@@ -1687,9 +1881,9 @@ class LaravelPackageSkeletonConfigurator
                 $this->keyToOption($key),
                 null,
                 InputOption::VALUE_NONE,
-                sprintf('Include %s', $this->feature($key)['label']),
+                sprintf('Include %s', $this->features->get($key)->label),
             ),
-            $this->featureKeys(),
+            $this->features->keys(),
         );
 
         $metadataOptions = array_map(
