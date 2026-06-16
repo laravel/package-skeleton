@@ -757,7 +757,37 @@ class LaravelPackageSkeletonConfigurator
                     $this->removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
                 ],
                 'add' => function () {
-                    $this->manualSteps[] = 'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.';
+                    $manualStep = 'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.';
+
+                    if (! $this->ghIsAuthenticated()) {
+                        $this->manualSteps[] = $manualStep;
+
+                        return;
+                    }
+
+                    $labels = ['breaking', 'enhancement', 'bug', 'documentation', 'dependencies', 'maintenance', 'skip-changelog', 'duplicate'];
+                    $failed = false;
+
+                    foreach ($labels as $label) {
+                        $result = $this->runCommand([
+                            'gh',
+                            'label',
+                            'create',
+                            $label,
+                            '--repo',
+                            $this->metadata->packageName(),
+                            '--force',
+                        ]);
+
+                        if (! $result['success']) {
+                            $failed = true;
+                        }
+                    }
+
+                    if ($failed) {
+                        $this->manualSteps[] = $manualStep;
+                    }
+
                     $this->manualSteps[] = 'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.';
                 },
             ],
