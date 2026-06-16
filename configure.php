@@ -356,17 +356,38 @@ class Tool
         public readonly string $key,
         public readonly string $label,
         public readonly ?string $description = null,
+        protected array $manualSteps = [],
     ) {
         //
     }
 
-    public static function from(string $key, string $label, ?string $description = null): self
-    {
+    public static function from(
+        string $key,
+        string $label,
+        ?string $description = null,
+        array $manualSteps = [],
+    ): self {
         return new self(
             key: $key,
             label: $label,
             description: $description,
+            manualSteps: $manualSteps,
         );
+    }
+
+    public function clearManualSteps(): void
+    {
+        $this->manualSteps = [];
+    }
+
+    public function removeManualStep(int $index): void
+    {
+        array_splice($this->manualSteps, $index, 1);
+    }
+
+    public function manualSteps(): array
+    {
+        return $this->manualSteps;
     }
 
     public function onRemove(callable $callback): self
@@ -385,15 +406,17 @@ class Tool
 
     public function remove(): void
     {
+        $this->clearManualSteps();
+
         if (isset($this->removeCallback)) {
-            ($this->removeCallback)();
+            ($this->removeCallback)($this);
         }
     }
 
     public function add(): void
     {
         if (isset($this->addCallback)) {
-            ($this->addCallback)();
+            ($this->addCallback)($this);
         }
     }
 }
@@ -428,6 +451,17 @@ class Tools
     public function get(string $key): ?Tool
     {
         return $this->tools[$key] ?? null;
+    }
+
+    public function manualSteps(): array
+    {
+        $steps = [];
+
+        foreach ($this->tools as $tool) {
+            $steps = array_merge($steps, $tool->manualSteps());
+        }
+
+        return $steps;
     }
 }
 
@@ -823,15 +857,15 @@ class LaravelPackageSkeletonConfigurator
                 key: 'dependabot',
                 label: 'Dependabot Pull Requests',
                 description: 'Automated dependency updates',
+                manualSteps: [
+                    'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.',
+                ],
             )
                 ->onRemove(fn () => [
                     $this->removePath('.github/dependabot.yml'),
                     $this->removeLinesContaining($readme, ['Dependabot']),
                     $this->removeLinesContaining($this->rootDir.'/docs/index.md', ['Dependabot']),
-                ])
-                ->onAdd(function () {
-                    $this->manualSteps[] = 'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
-                }),
+                ]),
         );
 
         $this->tools->add(
@@ -849,6 +883,10 @@ class LaravelPackageSkeletonConfigurator
                 key: 'changelog',
                 label: 'Changelog',
                 description: 'Automated changelog generation',
+                manualSteps: [
+                    'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.',
+                    'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.',
+                ],
             )->onRemove(
                 fn () => [
                     $this->removePath('CHANGELOG.md'),
@@ -861,16 +899,8 @@ class LaravelPackageSkeletonConfigurator
                     $this->removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
                 ],
             )
-                ->onAdd(function () {
-                    $manualSteps = [
-                        'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.',
-                        'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.',
-                    ];
-
+                ->onAdd(function (Tool $tool) {
                     if (! $this->ghRepoExists($this->metadata->packageName())) {
-                        $this->manualSteps[] = $manualSteps[0];
-                        $this->manualSteps[] = $manualSteps[1];
-
                         return;
                     }
 
@@ -901,11 +931,9 @@ class LaravelPackageSkeletonConfigurator
                         }
                     }
 
-                    if ($failed) {
-                        $this->manualSteps[] = $manualSteps[0];
+                    if (! $failed) {
+                        $tool->removeManualStep(0);
                     }
-
-                    $this->manualSteps[] = $manualSteps[1];
                 }),
         );
 
@@ -931,6 +959,9 @@ class LaravelPackageSkeletonConfigurator
                 key: 'documentation',
                 label: 'Documentation',
                 description: 'Docs via VitePress + GitHub Pages',
+                manualSteps: [
+                    'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.',
+                ],
             )
                 ->onRemove(fn () => [
                     $this->removePath('docs'),
@@ -959,12 +990,8 @@ class LaravelPackageSkeletonConfigurator
                         'docs/.vitepress/dist',
                     ]),
                 ])
-                ->onAdd(function () {
-                    $manualStep = 'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.';
-
+                ->onAdd(function (Tool $tool) {
                     if (! $this->ghRepoExists($this->metadata->packageName())) {
-                        $this->manualSteps[] = $manualStep;
-
                         return;
                     }
 
@@ -976,8 +1003,8 @@ class LaravelPackageSkeletonConfigurator
                         'build_type=workflow',
                     ]);
 
-                    if (! $result['success']) {
-                        $this->manualSteps[] = $manualStep;
+                    if ($result['success']) {
+                        $tool->clearManualSteps();
                     }
                 }),
         );
@@ -1002,7 +1029,7 @@ class LaravelPackageSkeletonConfigurator
             'selected_tools' => $selectedTools,
             'removed_paths' => [],
             'modified_files' => [],
-            'manual_steps' => $this->manualSteps,
+            'manual_steps' => [],
         ];
 
         $this->replacePackageReadme();
@@ -1056,6 +1083,8 @@ class LaravelPackageSkeletonConfigurator
         foreach ($selectedTools as $toolToAdd) {
             $this->tools->get($toolToAdd)->add();
         }
+
+        $this->summary['manual_steps'] = $this->tools->manualSteps();
 
         if (! $this->isGithubMode('create')) {
             $this->removePath('configure.php');
