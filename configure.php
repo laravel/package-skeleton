@@ -546,8 +546,8 @@ class LaravelPackageSkeletonConfigurator
 
         $tools = multiselect(
             'Package Tools',
-            array_map(fn ($tool) => $tool['label'], $this->tools->labels()),
-            $this->toolKeys(),
+            $this->tools->labels(),
+            $this->tools->keys(),
             info: fn (string $key) => $this->tools->get($key)->description ?? '',
         );
 
@@ -604,7 +604,7 @@ class LaravelPackageSkeletonConfigurator
 
         $result = $this->configure([
             'features' => $this->flaggedFeatures() ?: $this->featureKeys(),
-            'tools' => $this->toolKeys(),
+            'tools' => $this->tools->keys(),
         ]);
 
         $this->writeJson($this->nonInteractivePayload($result));
@@ -806,11 +806,6 @@ class LaravelPackageSkeletonConfigurator
         return $this->features()[$key];
     }
 
-    private function tool(string $key): Tool
-    {
-        return $this->tools->get($key);
-    }
-
     /** @return list<string> */
     private function featureKeys(): array
     {
@@ -988,12 +983,6 @@ class LaravelPackageSkeletonConfigurator
         );
     }
 
-    /** @return list<string> */
-    private function toolKeys(): array
-    {
-        return $this->tools->keys();
-    }
-
     /**
      * @param  array<string, mixed>  $options
      * @return array{success: bool, errors: list<string>, github: array<string, mixed>, summary: array<string, mixed>}
@@ -1003,7 +992,7 @@ class LaravelPackageSkeletonConfigurator
         $selectedFeatures = array_values(
             $options['features'] ?? $this->featureKeys(),
         );
-        $selectedTools = array_values($options['tools'] ?? $this->toolKeys());
+        $selectedTools = array_values($options['tools'] ?? $this->tools->keys());
 
         $github = $this->defaultGithubResult();
 
@@ -1030,7 +1019,7 @@ class LaravelPackageSkeletonConfigurator
             }
         }
 
-        foreach (array_diff($this->toolKeys(), $selectedTools) as $toolToRemove) {
+        foreach (array_diff($this->tools->keys(), $selectedTools) as $toolToRemove) {
             $this->tools->get($toolToRemove)->remove();
         }
 
