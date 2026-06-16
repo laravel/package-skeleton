@@ -1,6 +1,5 @@
 <div align="center">
     <h1>:package_name</h1>
-    :package_description
 </div>
 
 <p align="center">
