@@ -871,15 +871,15 @@ class LaravelPackageSkeletonConfigurator
             }
         }
 
-        foreach ($selectedFeatures as $featureToAdd) {
-            if (isset($this->feature($featureToAdd)['add'])) {
-                $this->feature($featureToAdd)['add']();
-            }
-        }
-
         foreach (array_diff($this->toolKeys(), $selectedTools) as $toolToRemove) {
             if (isset($this->tool($toolToRemove)['remove'])) {
                 $this->tool($toolToRemove)['remove']();
+            }
+        }
+
+        foreach ($selectedTools as $toolToAdd) {
+            if (isset($this->feature($toolToAdd)['add'])) {
+                $this->feature($toolToAdd)['add']();
             }
         }
 
