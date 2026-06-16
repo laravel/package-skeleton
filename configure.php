@@ -1597,7 +1597,10 @@ class LaravelPackageSkeletonConfigurator
 
     private function absolutePath(string $path): string
     {
-        return str_starts_with($path, $this->rootDir.'/')
+        $normalizedPath = str_replace('\\', '/', $path);
+        $normalizedRoot = str_replace('\\', '/', $this->rootDir);
+
+        return str_starts_with($normalizedPath, $normalizedRoot.'/')
             ? $path
             : $this->rootDir.'/'.$path;
     }
