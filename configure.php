@@ -1175,7 +1175,7 @@ class LaravelPackageSkeletonConfigurator
             ? [PHP_BINARY, $composerBinary]
             : ['composer'];
 
-        $dumpAutoloadResult = $this->runCommand([...$composerCommand, 'dump-autoload', '--quiet']);
+        $dumpAutoloadResult = $this->runCommand([...$composerCommand, 'dump-autoload', '--quiet', '--no-scripts']);
 
         if (! $dumpAutoloadResult['success']) {
             return [
