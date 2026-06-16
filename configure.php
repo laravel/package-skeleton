@@ -790,7 +790,6 @@ class LaravelPackageSkeletonConfigurator
                             $label,
                             '--repo',
                             $this->metadata->packageName(),
-                            '--force',
                         ]);
 
                         if (! $result['success']) {
