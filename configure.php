@@ -779,7 +779,16 @@ class LaravelPackageSkeletonConfigurator
                         return;
                     }
 
-                    $labels = ['breaking', 'enhancement', 'bug', 'documentation', 'dependencies', 'maintenance', 'skip-changelog', 'duplicate'];
+                    $labels = [
+                        'breaking',
+                        'enhancement',
+                        'bug',
+                        'documentation',
+                        'dependencies',
+                        'maintenance',
+                        'skip-changelog',
+                        'duplicate',
+                    ];
                     $failed = false;
 
                     foreach ($labels as $label) {
