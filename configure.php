@@ -1175,19 +1175,7 @@ class LaravelPackageSkeletonConfigurator
             ? [PHP_BINARY, $composerBinary]
             : ['composer'];
 
-        $dumpAutoloadResult = $this->runCommand([...$composerCommand, 'dump-autoload', '--quiet', '--no-scripts']);
-
-        if (! $dumpAutoloadResult['success']) {
-            return [
-                'success' => false,
-                'errors' => [
-                    'Composer autoload generation failed: '.
-                        $dumpAutoloadResult['output'],
-                ],
-                'github' => $github,
-                'summary' => $this->summary,
-            ];
-        }
+        $this->runCommand([...$composerCommand, 'dump-autoload', '--quiet']);
 
         sort($this->summary['modified_files']);
         sort($this->summary['removed_paths']);
