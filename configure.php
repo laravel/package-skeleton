@@ -1137,6 +1137,7 @@ class LaravelPackageSkeletonConfigurator
         ];
 
         unset($composer['scripts']['post-install-cmd']);
+        unset($composer['scripts']['post-update-cmd']);
 
         $composer['autoload']['psr-4'] = [$namespace => 'src/'];
         $composer['autoload-dev']['psr-4'] =

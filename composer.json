@@ -50,6 +50,9 @@
         "post-install-cmd": [
             "@php configure.php"
         ],
+        "post-update-cmd": [
+            "@php configure.php"
+        ],
         "post-autoload-dump": [
             "@clear",
             "@prepare"
