@@ -346,6 +346,87 @@ class Metadata
     }
 }
 
+class Tool
+{
+    private mixed $removeCallback = null;
+
+    private mixed $addCallback = null;
+
+    public function __construct(
+        public readonly string $key,
+        public readonly string $label,
+        public readonly ?string $description = null,
+    ) {
+        //
+    }
+
+    public static function from(string $key, string $label, ?string $description = null): self
+    {
+        return new self(
+            key: $key,
+            label: $label,
+            description: $description,
+        );
+    }
+
+    public function remove($callable = null): self
+    {
+        if ($callable) {
+            $this->removeCallback = $callable;
+        } elseif (isset($this->removeCallback)) {
+            ($this->removeCallback)();
+        }
+
+        //
+        return $this;
+    }
+
+    public function add($callable = null): self
+    {
+        if ($callable) {
+            $this->addCallback = $callable;
+        } elseif (isset($this->addCallback)) {
+            ($this->addCallback)();
+        }
+
+        //
+        return $this;
+    }
+}
+
+class Tools
+{
+    private array $tools = [];
+
+    public function __construct()
+    {
+        //
+    }
+
+    public function add(Tool $tool): void
+    {
+        $this->tools[$tool->key] = $tool;
+    }
+
+    public function keys(): array
+    {
+        return array_keys($this->tools);
+    }
+
+    public function labels(): array
+    {
+        return array_map(
+            fn (Tool $tool) => $tool->label,
+            $this->tools,
+        );
+    }
+
+    public function get(string $key): ?Tool
+    {
+        return $this->tools[$key] ?? null;
+    }
+}
+
 class LaravelPackageSkeletonConfigurator
 {
     use FormatsStrings, InteractsWithGitHub;
@@ -379,10 +460,13 @@ class LaravelPackageSkeletonConfigurator
 
     private Metadata $metadata;
 
+    private Tools $tools;
+
     public function __construct(protected string $rootDir)
     {
         $this->rootDir = rtrim($rootDir, DIRECTORY_SEPARATOR);
         $this->metadata = new MetaData($this->rootDir);
+        $this->tools = new Tools;
     }
 
     public function run(): int
@@ -457,9 +541,9 @@ class LaravelPackageSkeletonConfigurator
 
         $tools = multiselect(
             'Package Tools',
-            array_map(fn ($tool) => $tool['label'], $this->tools()),
+            array_map(fn ($tool) => $tool['label'], $this->tools->labels()),
             $this->toolKeys(),
-            info: fn (string $key) => $this->tools()[$key]['description'] ?? '',
+            info: fn (string $key) => $this->tools->get($key)->description ?? '',
         );
 
         $this->setupGithubConfig();
@@ -717,12 +801,9 @@ class LaravelPackageSkeletonConfigurator
         return $this->features()[$key];
     }
 
-    /**
-     * @return array{label: string, description?: string, remove?: callable}
-     */
-    private function tool(string $key): array
+    private function tool(string $key): Tool
     {
-        return $this->tools()[$key];
+        return $this->tools->get($key);
     }
 
     /** @return list<string> */
@@ -738,25 +819,47 @@ class LaravelPackageSkeletonConfigurator
         $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
         $docsIndex = $this->rootDir.'/docs/index.md';
 
-        return [
-            'dependabot' => [
-                'label' => 'Dependabot Pull Requests',
-                'remove' => fn () => [
+        $this->tools->add(
+            Tool::from(
+                key: 'dependabot',
+                label: 'Dependabot Pull Requests',
+                description: 'Automated dependency updates',
+            )
+                ->remove(fn () => [
                     $this->removePath('.github/dependabot.yml'),
                     $this->removeLinesContaining($readme, ['Dependabot']),
                     $this->removeLinesContaining($this->rootDir.'/docs/index.md', ['Dependabot']),
-                ],
-                'add' => function () {
+                ])
+                ->add(function () {
                     $this->manualSteps[] = 'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
-                },
-                'description' => 'Automated dependency updates',
-            ],
-            'issue_template' => [
-                'label' => 'Issue Template',
-                'remove' => fn () => $this->removePath(
+                }),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'issue_template',
+                label: 'Issue Template',
+            )
+                ->remove(fn () => $this->removePath(
                     '.github/ISSUE_TEMPLATE',
-                ),
-            ],
+                )),
+        );
+
+        return [
+            // 'dependabot' => [
+            //     'label' => 'Dependabot Pull Requests',
+            //     'remove' => ,
+            //     'add' => function () {
+            //         $this->manualSteps[] = 'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
+            //     },
+            //     'description' => 'Automated dependency updates',
+            // ],
+            // 'issue_template' => [
+            //     'label' => 'Issue Template',
+            //     'remove' => fn() => $this->removePath(
+            //         '.github/ISSUE_TEMPLATE',
+            //     ),
+            // ],
             'changelog' => [
                 'label' => 'Changelog',
                 'description' => 'Automated changelog generation',
@@ -887,7 +990,7 @@ class LaravelPackageSkeletonConfigurator
     /** @return list<string> */
     private function toolKeys(): array
     {
-        return array_keys($this->tools());
+        return $this->tools->keys();
     }
 
     /**
