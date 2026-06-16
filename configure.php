@@ -1170,7 +1170,12 @@ class LaravelPackageSkeletonConfigurator
             $this->removePath('configure.php');
         }
 
-        $dumpAutoloadResult = $this->runCommand(['composer', 'dump-autoload', '--quiet']);
+        $composerBinary = getenv('COMPOSER_BINARY');
+        $composerCommand = $composerBinary !== false
+            ? [PHP_BINARY, $composerBinary]
+            : ['composer'];
+
+        $dumpAutoloadResult = $this->runCommand([...$composerCommand, 'dump-autoload', '--quiet']);
 
         if (! $dumpAutoloadResult['success']) {
             return [
