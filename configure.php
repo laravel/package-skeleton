@@ -346,6 +346,75 @@ class Metadata
     }
 }
 
+class Feature
+{
+    private mixed $removeCallback = null;
+
+    public function __construct(
+        public readonly string $key,
+        public readonly string $label,
+        public readonly ?string $description = null,
+    ) {
+        //
+    }
+
+    public static function from(string $key, string $label, ?string $description = null): self
+    {
+        return new self(
+            key: $key,
+            label: $label,
+            description: $description,
+        );
+    }
+
+    public function onRemove(callable $callback): self
+    {
+        $this->removeCallback = $callback;
+
+        return $this;
+    }
+
+    public function remove(): void
+    {
+        if (isset($this->removeCallback)) {
+            ($this->removeCallback)($this);
+        }
+    }
+}
+
+class Features
+{
+    private array $features = [];
+
+    public function __construct()
+    {
+        //
+    }
+
+    public function add(Feature $feature): void
+    {
+        $this->features[$feature->key] = $feature;
+    }
+
+    public function keys(): array
+    {
+        return array_keys($this->features);
+    }
+
+    public function labels(): array
+    {
+        return array_map(
+            fn (Feature $feature) => $feature->label,
+            $this->features,
+        );
+    }
+
+    public function get(string $key): ?Feature
+    {
+        return $this->features[$key] ?? null;
+    }
+}
+
 class Tool
 {
     private mixed $removeCallback = null;
@@ -498,13 +567,17 @@ class LaravelPackageSkeletonConfigurator
 
     private Metadata $metadata;
 
+    private Features $features;
+
     private Tools $tools;
 
     public function __construct(protected string $rootDir)
     {
         $this->rootDir = rtrim($rootDir, DIRECTORY_SEPARATOR);
         $this->metadata = new MetaData($this->rootDir);
+        $this->features = new Features;
         $this->tools = new Tools;
+        $this->registerFeatures();
         $this->registerTools();
     }
 
@@ -569,13 +642,13 @@ class LaravelPackageSkeletonConfigurator
 
         $this->metadata->collect();
 
-        $defaultFeatures = $this->flaggedFeatures() ?: $this->featureKeys();
+        $defaultFeatures = $this->flaggedFeatures() ?: $this->features->keys();
 
         $features = multiselect(
             'Package Features',
-            array_map(fn ($feature) => $feature['label'], $this->features()),
+            $this->features->labels(),
             $defaultFeatures,
-            info: fn (string $key) => $this->features()[$key]['description'] ?? '',
+            info: fn (string $key) => $this->features->get($key)->description ?? '',
         );
 
         $tools = multiselect(
@@ -637,7 +710,7 @@ class LaravelPackageSkeletonConfigurator
         $this->metadata->useDefaults();
 
         $result = $this->configure([
-            'features' => $this->flaggedFeatures() ?: $this->featureKeys(),
+            'features' => $this->flaggedFeatures() ?: $this->features->keys(),
             'tools' => $this->tools->keys(),
         ]);
 
@@ -668,7 +741,7 @@ class LaravelPackageSkeletonConfigurator
     {
         return array_values(
             array_filter(
-                $this->featureKeys(),
+                $this->features->keys(),
                 fn (string $feature): bool => (bool) $this->input()->getOption($this->keyToOption($feature)),
             ),
         );
@@ -733,8 +806,7 @@ class LaravelPackageSkeletonConfigurator
         ];
     }
 
-    /** @return array<string, array{label: string, description?: string, remove?: callable}> */
-    private function features(): array
+    private function registerFeatures(): void
     {
         $provider = sprintf('%s/src/%sServiceProvider.php', $this->rootDir, $this->metadata->className() ?? '');
         $readme = $this->rootDir.'/README.md';
@@ -742,108 +814,118 @@ class LaravelPackageSkeletonConfigurator
         $docsIndex = $this->rootDir.'/docs/index.md';
         $docsInstallation = $this->rootDir.'/docs/getting-started/installation.md';
 
-        return [
-            'config' => [
-                'label' => 'Config file',
-                'remove' => fn () => [
-                    $this->removePath('config'),
-                    $this->removeChiselSection($provider, 'config'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Configuration File'),
-                    $this->removePath('docs/getting-started/configuration.md'),
-                    $this->removeLinesContaining($docsConfig, ['Configuration']),
-                    $this->removeLinesContaining($docsIndex, ['Configuration']),
-                    $this->removeLinesContaining($docsInstallation, ['-config']),
-                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - config']),
-                ],
-            ],
-            'routes' => [
-                'label' => 'Routes',
-                'remove' => fn () => [
-                    $this->removePath('routes'),
-                    $this->removeChiselSection($provider, 'routes'),
-                    $this->removeLinesContaining($readme, ['route', 'Route']),
-                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - routes']),
-                ],
-            ],
-            'views' => [
-                'label' => 'Views',
-                'remove' => fn () => [
-                    $this->removePath('resources/views'),
-                    $this->removeChiselSection($provider, 'views'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Views'),
-                    $this->removeLinesContaining($docsInstallation, ['-views']),
-                ],
-            ],
-            'translations' => [
-                'label' => 'Translations',
-                'remove' => fn () => [
-                    $this->removePath('lang'),
-                    $this->removeChiselSection($provider, 'translations'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Translations'),
-                    $this->removeLinesContaining($docsInstallation, ['-lang']),
-                ],
-            ],
-            'migrations' => [
-                'label' => 'Migrations',
-                'remove' => fn () => [
-                    $this->removePath('database/migrations'),
-                    $this->removeChiselSection($provider, 'migrations'),
-                    $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
-                    $this->removeLinesContaining($docsInstallation, ['-migrations']),
-                    $this->removeMarkdownSection($docsInstallation, 'Running Migrations'),
-                    $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
-                ],
-            ],
-            'assets' => [
-                'label' => 'Assets',
-                'remove' => fn () => [
-                    $this->removePath('public'),
-                    $this->removeChiselSection($provider, 'assets'),
-                    $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
-                    $this->removeLinesContaining($docsInstallation, ['-assets']),
-                ],
-            ],
-            'commands' => [
-                'label' => 'Commands',
-                'remove' => fn () => [
-                    $this->removePath('src/Console/Commands'),
-                    $this->removeChiselSection($provider, 'commands'),
-                    $this->removeLinesContaining($readme, ['command', 'Command']),
-                ],
-            ],
-            'facade' => [
-                'label' => 'Facade',
-                'remove' => fn () => [
-                    $this->removePath('src/Facades'),
-                    $this->removeLinesContaining($readme, ['facade', 'Facade']),
-                ],
-            ],
-            'boost_skill' => [
-                'label' => 'Boost Skill',
-                'description' => 'Add a package skill for Laravel Boost',
-                'remove' => fn () => [
-                    $this->removePath('resources/boost/skills'),
-                    $this->removePath('.agents/skills/package-generate-skill'),
-                    $this->removePath('.claude/skills/package-generate-skill'),
-                    $this->removeLinesContaining($readme, ['Boost', 'boost']),
-                    $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['Boost', 'boost']),
-                ],
-            ],
-        ];
-    }
+        $this->features->add(
+            Feature::from(
+                key: 'config',
+                label: 'Config file',
+            )->onRemove(fn () => [
+                $this->removePath('config'),
+                $this->removeChiselSection($provider, 'config'),
+                $this->removeMarkdownSection($readme, 'Publishing the Configuration File'),
+                $this->removePath('docs/getting-started/configuration.md'),
+                $this->removeLinesContaining($docsConfig, ['Configuration']),
+                $this->removeLinesContaining($docsIndex, ['Configuration']),
+                $this->removeLinesContaining($docsInstallation, ['-config']),
+                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - config']),
+            ]),
+        );
 
-    /**
-     * @return array{label: string, description?: string, remove?: callable}
-     */
-    private function feature(string $key): array
-    {
-        return $this->features()[$key];
-    }
+        $this->features->add(
+            Feature::from(
+                key: 'routes',
+                label: 'Routes',
+            )->onRemove(fn () => [
+                $this->removePath('routes'),
+                $this->removeChiselSection($provider, 'routes'),
+                $this->removeLinesContaining($readme, ['route', 'Route']),
+                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - routes']),
+            ]),
+        );
 
-    /** @return list<string> */
-    private function featureKeys(): array
-    {
-        return array_keys($this->features());
+        $this->features->add(
+            Feature::from(
+                key: 'views',
+                label: 'Views',
+            )->onRemove(fn () => [
+                $this->removePath('resources/views'),
+                $this->removeChiselSection($provider, 'views'),
+                $this->removeMarkdownSection($readme, 'Publishing the Views'),
+                $this->removeLinesContaining($docsInstallation, ['-views']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'translations',
+                label: 'Translations',
+            )->onRemove(fn () => [
+                $this->removePath('lang'),
+                $this->removeChiselSection($provider, 'translations'),
+                $this->removeMarkdownSection($readme, 'Publishing the Translations'),
+                $this->removeLinesContaining($docsInstallation, ['-lang']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'migrations',
+                label: 'Migrations',
+            )->onRemove(fn () => [
+                $this->removePath('database/migrations'),
+                $this->removeChiselSection($provider, 'migrations'),
+                $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
+                $this->removeLinesContaining($docsInstallation, ['-migrations']),
+                $this->removeMarkdownSection($docsInstallation, 'Running Migrations'),
+                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'assets',
+                label: 'Assets',
+            )->onRemove(fn () => [
+                $this->removePath('public'),
+                $this->removeChiselSection($provider, 'assets'),
+                $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
+                $this->removeLinesContaining($docsInstallation, ['-assets']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'commands',
+                label: 'Commands',
+            )->onRemove(fn () => [
+                $this->removePath('src/Console/Commands'),
+                $this->removeChiselSection($provider, 'commands'),
+                $this->removeLinesContaining($readme, ['command', 'Command']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'facade',
+                label: 'Facade',
+            )->onRemove(fn () => [
+                $this->removePath('src/Facades'),
+                $this->removeLinesContaining($readme, ['facade', 'Facade']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'boost_skill',
+                label: 'Boost Skill',
+                description: 'Add a package skill for Laravel Boost',
+            )->onRemove(fn () => [
+                $this->removePath('resources/boost/skills'),
+                $this->removePath('.agents/skills/package-generate-skill'),
+                $this->removePath('.claude/skills/package-generate-skill'),
+                $this->removeLinesContaining($readme, ['Boost', 'boost']),
+                $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['Boost', 'boost']),
+            ]),
+        );
     }
 
     private function registerTools()
@@ -1017,7 +1099,7 @@ class LaravelPackageSkeletonConfigurator
     private function configure(array $options): array
     {
         $selectedFeatures = array_values(
-            $options['features'] ?? $this->featureKeys(),
+            $options['features'] ?? $this->features->keys(),
         );
         $selectedTools = array_values($options['tools'] ?? $this->tools->keys());
 
@@ -1040,10 +1122,8 @@ class LaravelPackageSkeletonConfigurator
         $this->removePath('.agents/skills/skeleton-development');
         $this->copyAgentSkillsToClaude();
 
-        foreach (array_diff($this->featureKeys(), $selectedFeatures) as $featureToRemove) {
-            if (isset($this->feature($featureToRemove)['remove'])) {
-                $this->feature($featureToRemove)['remove']();
-            }
+        foreach (array_diff($this->features->keys(), $selectedFeatures) as $featureToRemove) {
+            $this->features->get($featureToRemove)->remove();
         }
 
         foreach (array_diff($this->tools->keys(), $selectedTools) as $toolToRemove) {
@@ -1396,7 +1476,7 @@ class LaravelPackageSkeletonConfigurator
     private function removeChiselMarkers(array $selectedFeatures): void
     {
         $provider = sprintf('%s/src/%sServiceProvider.php', $this->rootDir, $this->metadata->className());
-        $providerSections = array_diff($this->featureKeys(), [
+        $providerSections = array_diff($this->features->keys(), [
             'facade',
             'boost_skill',
         ]);
@@ -1805,9 +1885,9 @@ class LaravelPackageSkeletonConfigurator
                 $this->keyToOption($key),
                 null,
                 InputOption::VALUE_NONE,
-                sprintf('Include %s', $this->feature($key)['label']),
+                sprintf('Include %s', $this->features->get($key)->label),
             ),
-            $this->featureKeys(),
+            $this->features->keys(),
         );
 
         $metadataOptions = array_map(
