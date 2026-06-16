@@ -854,6 +854,7 @@ class LaravelPackageSkeletonConfigurator
                         'docs/.vitepress/dist',
                     ]),
                 ],
+
                 'add' => function () {
                     $manualStep = 'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.';
 
@@ -866,8 +867,6 @@ class LaravelPackageSkeletonConfigurator
                     $result = $this->runCommand([
                         'gh',
                         'api',
-                        '-X',
-                        'PUT',
                         "/repos/{$this->metadata->packageName()}/pages",
                         '-f',
                         'build_type=workflow',
