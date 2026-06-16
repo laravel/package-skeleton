@@ -979,7 +979,7 @@ class LaravelPackageSkeletonConfigurator
             ':vendor_name' => $this->headline($vendorSlug),
             ':vendor_slug' => $vendorSlug,
             ':vendor_namespace' => $vendorNamespace,
-            ':package_name_human' => $packageName,
+            ':package_name' => $packageName,
             ':package_slug' => $packageSlug,
             ':package_description' => $this->metadata->packageDescription(),
             ':class_name' => $className,
