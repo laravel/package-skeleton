@@ -369,28 +369,32 @@ class Tool
         );
     }
 
-    public function remove($callable = null): self
+    public function onRemove(callable $callback): self
     {
-        if ($callable) {
-            $this->removeCallback = $callable;
-        } elseif (isset($this->removeCallback)) {
-            ($this->removeCallback)();
-        }
+        $this->removeCallback = $callback;
 
-        //
         return $this;
     }
 
-    public function add($callable = null): self
+    public function onAdd(callable $callback): self
     {
-        if ($callable) {
-            $this->addCallback = $callable;
-        } elseif (isset($this->addCallback)) {
+        $this->addCallback = $callback;
+
+        return $this;
+    }
+
+    public function remove(): void
+    {
+        if (isset($this->removeCallback)) {
+            ($this->removeCallback)();
+        }
+    }
+
+    public function add(): void
+    {
+        if (isset($this->addCallback)) {
             ($this->addCallback)();
         }
-
-        //
-        return $this;
     }
 }
 
@@ -467,6 +471,7 @@ class LaravelPackageSkeletonConfigurator
         $this->rootDir = rtrim($rootDir, DIRECTORY_SEPARATOR);
         $this->metadata = new MetaData($this->rootDir);
         $this->tools = new Tools;
+        $this->registerTools();
     }
 
     public function run(): int
@@ -812,8 +817,7 @@ class LaravelPackageSkeletonConfigurator
         return array_keys($this->features());
     }
 
-    /** @return array<string, array{label: string, description?: string, remove?: callable}> */
-    private function tools(): array
+    private function registerTools()
     {
         $readme = $this->rootDir.'/README.md';
         $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
@@ -825,12 +829,12 @@ class LaravelPackageSkeletonConfigurator
                 label: 'Dependabot Pull Requests',
                 description: 'Automated dependency updates',
             )
-                ->remove(fn () => [
+                ->onRemove(fn () => [
                     $this->removePath('.github/dependabot.yml'),
                     $this->removeLinesContaining($readme, ['Dependabot']),
                     $this->removeLinesContaining($this->rootDir.'/docs/index.md', ['Dependabot']),
                 ])
-                ->add(function () {
+                ->onAdd(function () {
                     $this->manualSteps[] = 'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
                 }),
         );
@@ -840,30 +844,18 @@ class LaravelPackageSkeletonConfigurator
                 key: 'issue_template',
                 label: 'Issue Template',
             )
-                ->remove(fn () => $this->removePath(
+                ->onRemove(fn () => $this->removePath(
                     '.github/ISSUE_TEMPLATE',
                 )),
         );
 
-        return [
-            // 'dependabot' => [
-            //     'label' => 'Dependabot Pull Requests',
-            //     'remove' => ,
-            //     'add' => function () {
-            //         $this->manualSteps[] = 'Review Dependabot dependency update pull requests before merging them. This package intentionally does not include a Dependabot automatic merge workflow.';
-            //     },
-            //     'description' => 'Automated dependency updates',
-            // ],
-            // 'issue_template' => [
-            //     'label' => 'Issue Template',
-            //     'remove' => fn() => $this->removePath(
-            //         '.github/ISSUE_TEMPLATE',
-            //     ),
-            // ],
-            'changelog' => [
-                'label' => 'Changelog',
-                'description' => 'Automated changelog generation',
-                'remove' => fn () => [
+        $this->tools->add(
+            Tool::from(
+                key: 'changelog',
+                label: 'Changelog',
+                description: 'Automated changelog generation',
+            )->onRemove(
+                fn () => [
                     $this->removePath('CHANGELOG.md'),
                     $this->removePath('.github/workflows/update-changelog.yml'),
                     $this->removePath('.github/release.yml'),
@@ -873,7 +865,8 @@ class LaravelPackageSkeletonConfigurator
                     $this->removeMarkdownSection($readme, 'Changelog'),
                     $this->removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
                 ],
-                'add' => function () {
+            )
+                ->onAdd(function () {
                     $manualSteps = [
                         'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.',
                         'Review branch protection for `main`; changelog automation needs GitHub Actions to be allowed to commit `CHANGELOG.md` after a release is published.',
@@ -918,23 +911,33 @@ class LaravelPackageSkeletonConfigurator
                     }
 
                     $this->manualSteps[] = $manualSteps[1];
-                },
-            ],
-            'funding' => [
-                'label' => 'Funding',
-                'remove' => fn () => $this->removePath('.github/FUNDING.yml'),
-            ],
-            'security_policy' => [
-                'label' => 'Security Policy',
-                'remove' => fn () => [
-                    $this->removePath('.github/SECURITY.md'),
-                    $this->removeMarkdownSection($readme, 'Security Vulnerabilities'),
-                ],
-            ],
-            'documentation' => [
-                'label' => 'Documentation',
-                'description' => 'Docs via VitePress + GitHub Pages',
-                'remove' => fn () => [
+                }),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'funding',
+                label: 'Funding',
+            )->onRemove(fn () => $this->removePath('.github/FUNDING.yml')),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'security_policy',
+                label: 'Security Policy',
+            )->onRemove(fn () => [
+                $this->removePath('.github/SECURITY.md'),
+                $this->removeMarkdownSection($readme, 'Security Vulnerabilities'),
+            ]),
+        );
+
+        $this->tools->add(
+            Tool::from(
+                key: 'documentation',
+                label: 'Documentation',
+                description: 'Docs via VitePress + GitHub Pages',
+            )
+                ->onRemove(fn () => [
                     $this->removePath('docs'),
                     $this->removePath('package.json'),
                     $this->removePath('.agents/skills/package-docs'),
@@ -960,9 +963,8 @@ class LaravelPackageSkeletonConfigurator
                         '/package.json',
                         'docs/.vitepress/dist',
                     ]),
-                ],
-
-                'add' => function () {
+                ])
+                ->onAdd(function () {
                     $manualStep = 'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.';
 
                     if (! $this->ghRepoExists($this->metadata->packageName())) {
@@ -982,9 +984,8 @@ class LaravelPackageSkeletonConfigurator
                     if (! $result['success']) {
                         $this->manualSteps[] = $manualStep;
                     }
-                },
-            ],
-        ];
+                }),
+        );
     }
 
     /** @return list<string> */
@@ -1030,9 +1031,7 @@ class LaravelPackageSkeletonConfigurator
         }
 
         foreach (array_diff($this->toolKeys(), $selectedTools) as $toolToRemove) {
-            if (isset($this->tool($toolToRemove)['remove'])) {
-                $this->tool($toolToRemove)['remove']();
-            }
+            $this->tools->get($toolToRemove)->remove();
         }
 
         $this->removeChiselMarkers($selectedFeatures);
@@ -1066,9 +1065,7 @@ class LaravelPackageSkeletonConfigurator
         }
 
         foreach ($selectedTools as $toolToAdd) {
-            if (isset($this->tool($toolToAdd)['add'])) {
-                $this->tool($toolToAdd)['add']();
-            }
+            $this->tools->get($toolToAdd)->add();
         }
 
         if (! $this->isGithubMode('create')) {
