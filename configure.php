@@ -833,6 +833,7 @@ class LaravelPackageSkeletonConfigurator
 
     private function registerFeatures(): void
     {
+        $featureTest = $this->rootDir.'/tests/Feature/ExampleTest.php';
         $readme = $this->rootDir.'/README.md';
         $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
         $docsIndex = $this->rootDir.'/docs/index.md';
@@ -845,6 +846,7 @@ class LaravelPackageSkeletonConfigurator
             )->onRemove(fn () => [
                 $this->removePath('config'),
                 $this->removeChiselSection($this->providerPath(), 'config'),
+                $this->removeChiselSection($featureTest, 'config'),
                 $this->removeMarkdownSection($readme, 'Publishing the Configuration File'),
                 $this->removePath('docs/getting-started/configuration.md'),
                 $this->removeLinesContaining($docsConfig, ['Configuration']),
@@ -873,6 +875,7 @@ class LaravelPackageSkeletonConfigurator
             )->onRemove(fn () => [
                 $this->removePath('resources/views'),
                 $this->removeChiselSection($this->providerPath(), 'views'),
+                $this->removeChiselSection($featureTest, 'views'),
                 $this->removeMarkdownSection($readme, 'Publishing the Views'),
                 $this->removeLinesContaining($docsInstallation, ['-views']),
             ]),
@@ -885,6 +888,7 @@ class LaravelPackageSkeletonConfigurator
             )->onRemove(fn () => [
                 $this->removePath('lang'),
                 $this->removeChiselSection($this->providerPath(), 'translations'),
+                $this->removeChiselSection($featureTest, 'translations'),
                 $this->removeMarkdownSection($readme, 'Publishing the Translations'),
                 $this->removeLinesContaining($docsInstallation, ['-lang']),
             ]),
@@ -923,6 +927,7 @@ class LaravelPackageSkeletonConfigurator
             )->onRemove(fn () => [
                 $this->removePath('src/Console/Commands'),
                 $this->removeChiselSection($this->providerPath(), 'commands'),
+                $this->removeChiselSection($featureTest, 'commands'),
                 $this->removeLinesContaining($readme, ['command', 'Command']),
             ]),
         );
@@ -1475,15 +1480,11 @@ class LaravelPackageSkeletonConfigurator
      */
     private function removeChiselMarkers(array $selectedFeatures): void
     {
-        $providerSections = array_diff($this->features->keys(), [
-            'facade',
-            'boost_skill',
-        ]);
+        $featureTest = $this->rootDir.'/tests/Feature/ExampleTest.php';
 
-        foreach ($providerSections as $section) {
-            if (in_array($section, $selectedFeatures, true)) {
-                $this->removeChiselSectionMarkers($this->providerPath(), $section);
-            }
+        foreach ($selectedFeatures as $section) {
+            $this->removeChiselSectionMarkers($this->providerPath(), $section);
+            $this->removeChiselSectionMarkers($featureTest, $section);
         }
     }
 
