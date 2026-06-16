@@ -1025,7 +1025,7 @@ class LaravelPackageSkeletonConfigurator
                         'skip-changelog',
                         'duplicate',
                     ];
-                    $failed = false;
+                    $allSucceeded = true;
 
                     foreach ($labels as $label) {
                         $result = $this->runCommand([
@@ -1033,16 +1033,17 @@ class LaravelPackageSkeletonConfigurator
                             'label',
                             'create',
                             $label,
+                            '--force',
                             '--repo',
                             $this->metadata->packageName(),
                         ]);
 
                         if (! $result['success']) {
-                            $failed = true;
+                            $allSucceeded = false;
                         }
                     }
 
-                    if (! $failed) {
+                    if ($allSucceeded) {
                         $tool->removeManualStep(0);
                     }
                 }),
