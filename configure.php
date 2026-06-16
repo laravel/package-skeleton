@@ -1148,6 +1148,7 @@ class LaravelPackageSkeletonConfigurator
         $this->replacePackageReadme();
         $this->replacePackageAgentsMarkdown();
         $this->replacePlaceholders();
+        $this->escapeJsStrings();
         $this->renamePackageFiles();
         $this->updateComposerJson($selectedFeatures);
         $this->removePath('.agents/skills/skeleton-development');
@@ -1234,6 +1235,25 @@ class LaravelPackageSkeletonConfigurator
 
             $this->replaceFileContents($file, $contents, $updated);
         }
+    }
+
+    private function escapeJsStrings(): void
+    {
+        $configTs = $this->rootDir.'/docs/.vitepress/config.ts';
+
+        if (! file_exists($configTs)) {
+            return;
+        }
+
+        $contents = (string) file_get_contents($configTs);
+
+        $updated = preg_replace_callback(
+            "/^(\s*(?:title|description):\s*)'(.*)',$/m",
+            fn (array $m): string => $m[1]."'".str_replace("'", "\\'", $m[2])."',",
+            $contents,
+        ) ?? $contents;
+
+        $this->replaceFileContents($configTs, $contents, $updated);
     }
 
     /**
