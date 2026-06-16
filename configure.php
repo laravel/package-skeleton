@@ -96,6 +96,20 @@ trait InteractsWithGitHub
         return $this->ghAuthenticated = $result['success'];
     }
 
+    private function ghRepoExists(string $repo): bool
+    {
+        if (! $this->ghIsAuthenticated()) {
+            return false;
+        }
+
+        $result = $this->runCommand(
+            ['gh', 'repo', 'view', $repo, '--json', 'name'],
+            getcwd() ?: __DIR__,
+        );
+
+        return $result['success'];
+    }
+
     private function ghUsername(): ?string
     {
         if ($this->ghUsername !== null) {
@@ -759,7 +773,7 @@ class LaravelPackageSkeletonConfigurator
                 'add' => function () {
                     $manualStep = 'Create the release-note labels you plan to use, such as `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.';
 
-                    if (! $this->ghIsAuthenticated()) {
+                    if (! $this->ghRepoExists($this->metadata->packageName())) {
                         $this->manualSteps[] = $manualStep;
 
                         return;
@@ -835,7 +849,7 @@ class LaravelPackageSkeletonConfigurator
                 'add' => function () {
                     $manualStep = 'Enable GitHub Pages and set the source to GitHub Actions so `.github/workflows/docs.yml` can deploy the VitePress site.';
 
-                    if (! $this->ghIsAuthenticated()) {
+                    if (! $this->ghRepoExists($this->metadata->packageName())) {
                         $this->manualSteps[] = $manualStep;
 
                         return;
@@ -907,12 +921,6 @@ class LaravelPackageSkeletonConfigurator
             }
         }
 
-        foreach ($selectedTools as $toolToAdd) {
-            if (isset($this->feature($toolToAdd)['add'])) {
-                $this->feature($toolToAdd)['add']();
-            }
-        }
-
         $this->removeChiselMarkers($selectedFeatures);
         $this->copyAgentsMarkdownToClaude();
         $this->cleanupEmptyDirectories();
@@ -940,6 +948,12 @@ class LaravelPackageSkeletonConfigurator
                     'github' => $github,
                     'summary' => $this->summary,
                 ];
+            }
+        }
+
+        foreach ($selectedTools as $toolToAdd) {
+            if (isset($this->tool($toolToAdd)['add'])) {
+                $this->tool($toolToAdd)['add']();
             }
         }
 
