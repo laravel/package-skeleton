@@ -1,22 +1,22 @@
 # Installation
 
-You can install :package_name using Composer:
+You can install the package via Composer:
 
 ```bash
 composer require :vendor_slug/:package_slug
 ```
 
-Laravel discovers the package service provider automatically. The service provider registers the package resources and any Artisan commands that :package_name ships.
+Laravel discovers the service provider automatically.
 
 ## Publishing Resources
 
-You can publish all package resources with the umbrella tag:
+You may publish all package resources at once:
 
 ```bash
 php artisan vendor:publish --tag=":package_slug"
 ```
 
-If you only need one resource, publish the matching tag:
+Or, publish a specific resource:
 
 ```bash
 php artisan vendor:publish --tag=":package_slug-config"
@@ -28,10 +28,8 @@ php artisan vendor:publish --tag=":package_slug-assets"
 
 ## Running Migrations
 
-If the package ships migrations, run them after publishing:
+After publishing the migrations, run them:
 
 ```bash
 php artisan migrate
 ```
-
-Remove publish commands for resources that :package_name does not provide.
