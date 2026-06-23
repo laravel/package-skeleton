@@ -292,7 +292,7 @@ class Metadata
             ],
             'package_name_human' => [
                 'label' => 'Package display name',
-                'hint' => 'Used as the readable package name in README and documentation.',
+                'hint' => 'Used as the readable package name in README.',
                 'default' => function () {
                     if ($value = $this->input->getOption('package-name-human')) {
                         return $value;
@@ -303,7 +303,7 @@ class Metadata
             ],
             'package_description' => [
                 'label' => 'Package description',
-                'hint' => 'Used in composer.json, README, and documentation intro copy.',
+                'hint' => 'Used in composer.json and README intro copy.',
                 'default' => fn () => $this->input->getOption('package-description') ?? '',
             ],
             'vendor_namespace' => [
@@ -836,9 +836,6 @@ class LaravelPackageSkeletonConfigurator
     {
         $featureTest = $this->rootDir.'/tests/Feature/ExampleTest.php';
         $readme = $this->rootDir.'/README.md';
-        $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
-        $docsIndex = $this->rootDir.'/docs/index.md';
-        $docsInstallation = $this->rootDir.'/docs/getting-started/installation.md';
 
         $this->features->add(
             Feature::from(
@@ -849,10 +846,6 @@ class LaravelPackageSkeletonConfigurator
                 $this->removeChiselSection($this->providerPath(), 'config'),
                 $this->removeChiselSection($featureTest, 'config'),
                 $this->removeMarkdownSection($readme, 'Publishing the Configuration File'),
-                $this->removePath('docs/getting-started/configuration.md'),
-                $this->removeLinesContaining($docsConfig, ['Configuration']),
-                $this->removeLinesContaining($docsIndex, ['Configuration']),
-                $this->removeLinesContaining($docsInstallation, ['-config']),
                 $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - config']),
             ]),
         );
@@ -878,7 +871,6 @@ class LaravelPackageSkeletonConfigurator
                 $this->removeChiselSection($this->providerPath(), 'views'),
                 $this->removeChiselSection($featureTest, 'views'),
                 $this->removeMarkdownSection($readme, 'Publishing the Views'),
-                $this->removeLinesContaining($docsInstallation, ['-views']),
             ]),
         );
 
@@ -891,7 +883,6 @@ class LaravelPackageSkeletonConfigurator
                 $this->removeChiselSection($this->providerPath(), 'translations'),
                 $this->removeChiselSection($featureTest, 'translations'),
                 $this->removeMarkdownSection($readme, 'Publishing the Translations'),
-                $this->removeLinesContaining($docsInstallation, ['-lang']),
             ]),
         );
 
@@ -903,8 +894,6 @@ class LaravelPackageSkeletonConfigurator
                 $this->removePath('database/migrations'),
                 $this->removeChiselSection($this->providerPath(), 'migrations'),
                 $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
-                $this->removeLinesContaining($docsInstallation, ['-migrations']),
-                $this->removeMarkdownSection($docsInstallation, 'Running Migrations'),
                 $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
             ]),
         );
@@ -917,7 +906,6 @@ class LaravelPackageSkeletonConfigurator
                 $this->removePath('public'),
                 $this->removeChiselSection($this->providerPath(), 'assets'),
                 $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
-                $this->removeLinesContaining($docsInstallation, ['-assets']),
             ]),
         );
 
@@ -961,8 +949,6 @@ class LaravelPackageSkeletonConfigurator
     private function registerTools(): void
     {
         $readme = $this->rootDir.'/README.md';
-        $docsConfig = $this->rootDir.'/docs/.vitepress/config.ts';
-        $docsIndex = $this->rootDir.'/docs/index.md';
 
         $this->tools->add(
             Tool::from(
@@ -976,7 +962,6 @@ class LaravelPackageSkeletonConfigurator
                 ->onRemove(fn () => [
                     $this->removePath('.github/dependabot.yml'),
                     $this->removeLinesContaining($readme, ['Dependabot']),
-                    $this->removeLinesContaining($this->rootDir.'/docs/index.md', ['Dependabot']),
                 ]),
         );
 
@@ -1004,9 +989,6 @@ class LaravelPackageSkeletonConfigurator
                     $this->removePath('CHANGELOG.md'),
                     $this->removePath('.github/workflows/update-changelog.yml'),
                     $this->removePath('.github/release.yml'),
-                    $this->removePath('docs/getting-started/changelog.md'),
-                    $this->removeLinesContaining($docsConfig, ['Changelog']),
-                    $this->removeLinesContaining($docsIndex, ['Changelog']),
                     $this->removeMarkdownSection($readme, 'Changelog'),
                     $this->removeLinesContaining($readme, ['changelog', 'CHANGELOG']),
                 ],
@@ -1066,61 +1048,6 @@ class LaravelPackageSkeletonConfigurator
                 $this->removeMarkdownSection($readme, 'Security Vulnerabilities'),
             ]),
         );
-
-        $this->tools->add(
-            Tool::from(
-                key: 'documentation',
-                label: 'Documentation',
-                description: 'Docs via VitePress + GitHub Pages',
-                manualSteps: [
-                    'Enable GitHub Pages with the source set to GitHub Actions.',
-                ],
-            )
-                ->onRemove(fn () => [
-                    $this->removePath('docs'),
-                    $this->removePath('package.json'),
-                    $this->removePath('.agents/skills/package-docs'),
-                    $this->removePath('.claude/skills/package-docs'),
-                    $this->removePath('.github/workflows/docs.yml'),
-                    $this->removeLinesContaining($readme, [
-                        'documentation',
-                        'Documentation',
-                        'VitePress',
-                        'GitHub Pages',
-                    ]),
-                    $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['VitePress', 'docs/']),
-                    $this->removeLinesContaining($this->rootDir.'/.agents/skills/package-generate-skill/SKILL.md', ['docs/']),
-                    $this->removeLinesContaining($this->rootDir.'/.claude/skills/package-generate-skill/SKILL.md', ['docs/']),
-                    $this->removeLinesContaining($this->rootDir.'/.gitignore', [
-                        'docs/.vitepress/dist',
-                        'package-lock.json',
-                        'pnpm-lock.yaml',
-                        'bun.lock',
-                    ]),
-                    $this->removeLinesContaining($this->rootDir.'/.gitattributes', [
-                        '/docs',
-                        '/package.json',
-                        'docs/.vitepress/dist',
-                    ]),
-                ])
-                ->onAdd(function (Tool $tool) {
-                    if (! $this->ghRepoExists($this->metadata->packageName())) {
-                        return;
-                    }
-
-                    $result = $this->runCommand([
-                        'gh',
-                        'api',
-                        "/repos/{$this->metadata->packageName()}/pages",
-                        '-f',
-                        'build_type=workflow',
-                    ]);
-
-                    if ($result['success']) {
-                        $tool->clearManualSteps();
-                    }
-                }),
-        );
     }
 
     /**
@@ -1148,7 +1075,6 @@ class LaravelPackageSkeletonConfigurator
         $this->replacePackageReadme();
         $this->replacePackageAgentsMarkdown();
         $this->replacePlaceholders();
-        $this->escapeJsStrings();
         $this->renamePackageFiles();
         $this->updateComposerJson($selectedFeatures);
         $this->removePath('.agents/skills/skeleton-development');
@@ -1235,25 +1161,6 @@ class LaravelPackageSkeletonConfigurator
 
             $this->replaceFileContents($file, $contents, $updated);
         }
-    }
-
-    private function escapeJsStrings(): void
-    {
-        $configTs = $this->rootDir.'/docs/.vitepress/config.ts';
-
-        if (! file_exists($configTs)) {
-            return;
-        }
-
-        $contents = (string) file_get_contents($configTs);
-
-        $updated = preg_replace_callback(
-            "/^(\s*(?:title|description):\s*)'(.*)',$/m",
-            fn (array $m): string => $m[1]."'".str_replace("'", "\\'", $m[2])."',",
-            $contents,
-        ) ?? $contents;
-
-        $this->replaceFileContents($configTs, $contents, $updated);
     }
 
     /**

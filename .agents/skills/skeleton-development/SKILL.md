@@ -18,7 +18,7 @@ Evolve the starter kit without making it less useful for future package authors.
 2. Keep starter guidance minimal and split skeleton-maintenance rules from package-author rules.
 3. Use temporary phase scaffold tests when proving repository shape, file parity, or generated scaffolding; delete those tests before final validation.
 4. Maintain skeleton guidance in `AGENTS.md`, package guidance in `AGENTS_PACKAGE.md`, and package-facing local skills in `.agents/skills`; `configure.php` copies package guidance to `AGENTS.md`, `CLAUDE.md`, and `.claude/skills` during package configuration.
-5. Keep `configure.php` feature and tool pruning maps, opt-in non-interactive `--[feature]` flags, service provider wiring, Composer metadata, `README_PACKAGE.md`, `AGENTS_PACKAGE.md`, docs, AI guidance, skills, and publishable files aligned.
+5. Keep `configure.php` feature and tool pruning maps, opt-in non-interactive `--[feature]` flags, service provider wiring, Composer metadata, `README_PACKAGE.md`, `AGENTS_PACKAGE.md`, AI guidance, skills, and publishable files aligned.
 6. Keep configure-only dependencies in `require-dev`, include them in configure dependency checks, and prune them from configured package Composer metadata.
 7. Keep development-time authoring files out of Composer dist archives with `.gitattributes` when they are not runtime package files.
 

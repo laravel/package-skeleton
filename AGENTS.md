@@ -26,6 +26,5 @@ This repository is a Laravel package skeleton for building new packages. Preserv
 - `package-testing`: use when adding or changing package tests with Pest 4 and Orchestra Testbench.
 - `package-release`: use when preparing changelog, release notes, tags, or GitHub release workflow changes.
 - `package-compatibility`: use when reviewing code, dependencies, or CI against the PHP and Laravel support matrix.
-- `package-docs`: use when writing README, VitePress, contributing, upgrade, or usage documentation.
-- `package-generate-skill`: use when updating the bundled Boost skill from the package implementation and docs.
+- `package-generate-skill`: use when updating the bundled Boost skill from the package implementation, README, and examples.
 - `skeleton-development`: use when changing this skeleton repository itself, including placeholders, configure flow, temporary phase tests, or scaffold-wide conventions.

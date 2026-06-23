@@ -1,6 +1,6 @@
 ---
 name: package-generate-skill
-description: "Use this skill when creating or updating the bundled Laravel Boost skill under resources/boost/skills from the package implementation and documentation. Trigger after public APIs, commands, config, routes, views, publish tags, examples, or docs change."
+description: "Use this skill when creating or updating the bundled Laravel Boost skill under resources/boost/skills from the package implementation and package documentation. Trigger after public APIs, commands, config, routes, views, publish tags, README content, or examples change."
 license: MIT
 metadata:
   author: laravel
@@ -15,7 +15,7 @@ Keep the package's bundled Boost skill accurate, concise, and focused on helping
 ## Workflow
 
 1. Inspect the package implementation before editing the Boost skill: service provider, facades, public classes, commands, config, routes, migrations, events, views, publish tags, and tests.
-2. Inspect package documentation: `README.md`, `docs/`, `docs/.vitepress/config.ts`, contributing docs, examples, and changelog entries that describe user-facing behavior.
+2. Inspect package documentation: `README.md`, contributing docs, examples, and changelog entries that describe user-facing behavior.
 3. Identify the public integration surface only. Include install, configure, publish, command, route, facade, helper, middleware, event, and testing guidance only when the package actually exposes it.
 4. Update `resources/boost/skills/*/SKILL.md` with practical adoption steps, references, examples, and anti-patterns for Laravel app developers using the package.
 5. Preserve front matter, package metadata, and the Boost skill structure: description, primary goal, workflow, references, examples, and anti-patterns.
@@ -39,7 +39,6 @@ Keep the package's bundled Boost skill accurate, concise, and focused on helping
 - `routes/*.php`
 - `database/migrations/`
 - `README.md`
-- `docs/`
 - `tests/Feature/` and `tests/Unit/`
 
 ## Examples
@@ -50,7 +49,7 @@ Keep the package's bundled Boost skill accurate, concise, and focused on helping
 
 ## Anti-Patterns
 
-- Regenerating the Boost skill from docs alone without checking implementation.
+- Regenerating the Boost skill from documentation alone without checking implementation.
 - Documenting private classes, test helpers, workbench-only routes, or implementation details as consumer API.
 - Adding speculative examples for features the package does not provide.
 - Removing package metadata that consuming agents need to identify and apply the skill.

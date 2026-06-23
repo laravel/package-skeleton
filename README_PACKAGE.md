@@ -63,8 +63,6 @@ php artisan vendor:publish --tag=":package_slug-assets"
 
 <!-- Add a basic usage example here. -->
 
-Full documentation is available at [https://:vendor_slug.github.io/:package_slug](https://:vendor_slug.github.io/:package_slug).
-
 ## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.

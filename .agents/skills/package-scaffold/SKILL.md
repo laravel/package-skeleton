@@ -15,10 +15,10 @@ Add package features in the right place and wire them through the service provid
 ## Workflow
 
 1. Inspect the existing package structure, sibling examples, README setup notes, and the current service provider before creating files.
-2. Identify whether the request touches commands, migrations, routes, config, views, translations, assets, middleware, tests, docs, compatibility, or release flow.
+2. Identify whether the request touches commands, migrations, routes, config, views, translations, assets, middleware, tests, README/contributing docs, compatibility, or release flow.
 3. Create the capability files under Laravel-native package paths and use the configured package names, namespaces, publish tags, URLs, and badges consistently.
 4. Wire the capability through the service provider using the patterns in *Provider wiring* below.
-5. Use `package-testing` for coverage, `package-docs` for documentation, `package-compatibility` for matrix-sensitive changes, and `package-release` for release tasks.
+5. Use `package-testing` for coverage, update README or contributing documentation when user-facing behavior changes, use `package-compatibility` for matrix-sensitive changes, and use `package-release` for release tasks.
 6. Add only the files needed for the requested capability and validate with the narrowest relevant command before broader checks.
 
 ## Provider Wiring

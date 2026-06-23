@@ -7,7 +7,7 @@ This repository is a starter for building Laravel packages. It includes a one-ti
 - Interactive one-time package configuration during `composer install`, or manually with `php configure.php`.
 - Laravel-native service provider wiring for config, routes, views, translations, migrations, assets, commands, and facades.
 - Pest, Larastan, Pint, Testbench, type coverage, and workbench scripts ready for package development.
-- Optional maintenance tooling for Dependabot update pull requests, changelog automation, funding, security policy, issue templates, and VitePress documentation.
+- Optional maintenance tooling for Dependabot update pull requests, changelog automation, funding, security policy, and issue templates.
 - AI guidance and reusable local skills for package authors.
 
 ## Getting Started
@@ -36,20 +36,8 @@ During configuration, `README_PACKAGE.md` and `AGENTS_PACKAGE.md` are customized
 
 Some GitHub settings need attention after you create your package repository:
 
-1. Enable GitHub Pages with the source set to GitHub Actions.
-2. Review Dependabot pull requests before merging. This skeleton does not include an automatic merge workflow.
-3. Create the release-note labels: `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.
-4. Review branch protection for `main` — changelog automation requires GitHub Actions to commit `CHANGELOG.md` after a release.
+1. Review Dependabot pull requests before merging. This skeleton does not include an automatic merge workflow.
+2. Create the release-note labels: `breaking`, `enhancement`, `bug`, `documentation`, `dependencies`, `maintenance`, `skip-changelog`, and `duplicate`.
+3. Review branch protection for `main` — changelog automation requires GitHub Actions to commit `CHANGELOG.md` after a release.
 
 No additional repository secrets are required; the workflows use GitHub's built-in `GITHUB_TOKEN`.
-
-## Previewing Documentation Locally
-
-The documentation scaffold uses VitePress. To preview it locally, install npm dependencies and run the development server:
-
-```bash
-npm install
-npm run docs:dev
-```
-
-Then open the local URL shown by VitePress, usually `http://localhost:5173/`.
