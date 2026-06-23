@@ -30,7 +30,7 @@ If you prefer to run configuration manually, run `composer install --no-scripts`
 
 For non-interactive configuration, pass `--no-interaction` with any metadata options you want to prefill. Omitting feature flags includes every package feature; passing feature flags includes only those features, such as `php configure.php --no-interaction --config --routes`.
 
-During configuration, `README_PACKAGE.md` and `AGENTS_PACKAGE.md` are customized and moved to `README.md` and `AGENTS.md`, replacing skeleton-facing files in the generated package.
+During configuration, `README_PACKAGE.md` and `AGENTS_PACKAGE.md` are customized and moved to `README.md` and `AGENTS.md`, replacing skeleton-facing files in the generated package. The script also links `CLAUDE.md` to `AGENTS.md` and `.claude` to `.agents` so both agent formats share the same guidance.
 
 ## Manual GitHub Follow-up
 

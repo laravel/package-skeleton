@@ -939,7 +939,6 @@ class LaravelPackageSkeletonConfigurator
             )->onRemove(fn () => [
                 $this->removePath('resources/boost/skills'),
                 $this->removePath('.agents/skills/package-generate-skill'),
-                $this->removePath('.claude/skills/package-generate-skill'),
                 $this->removeLinesContaining($readme, ['Boost', 'boost']),
                 $this->removeLinesContaining($this->rootDir.'/AGENTS.md', ['Boost', 'boost']),
             ]),
@@ -1078,7 +1077,6 @@ class LaravelPackageSkeletonConfigurator
         $this->renamePackageFiles();
         $this->updateComposerJson($selectedFeatures);
         $this->removePath('.agents/skills/skeleton-development');
-        $this->copyAgentSkillsToClaude();
 
         foreach (array_diff($this->features->keys(), $selectedFeatures) as $featureToRemove) {
             $this->features->get($featureToRemove)->remove();
@@ -1089,7 +1087,7 @@ class LaravelPackageSkeletonConfigurator
         }
 
         $this->removeChiselMarkers($selectedFeatures);
-        $this->copyAgentsMarkdownToClaude();
+        $this->linkClaudeGuidance();
         $this->cleanupEmptyDirectories();
 
         $formatResult = $this->runCommand([PHP_BINARY, 'vendor/bin/pint', '--quiet']);
@@ -1496,7 +1494,14 @@ class LaravelPackageSkeletonConfigurator
     {
         $path = $this->rootDir.'/'.$relativePath;
 
-        if (! file_exists($path)) {
+        if (! file_exists($path) && ! is_link($path)) {
+            return;
+        }
+
+        if (is_link($path)) {
+            unlink($path);
+            $this->trackRemoved($relativePath);
+
             return;
         }
 
@@ -1516,7 +1521,7 @@ class LaravelPackageSkeletonConfigurator
         );
 
         foreach ($iterator as $item) {
-            $item->isDir()
+            $item->isDir() && ! $item->isLink()
                 ? rmdir($item->getPathname())
                 : unlink($item->getPathname());
         }
@@ -1579,16 +1584,48 @@ class LaravelPackageSkeletonConfigurator
         $this->renamePath('AGENTS_PACKAGE.md', 'AGENTS.md');
     }
 
-    private function copyAgentSkillsToClaude(): void
+    private function linkClaudeGuidance(): void
     {
-        $source = $this->rootDir.'/.agents/skills';
-        $destination = $this->rootDir.'/.claude/skills';
+        $this->linkOrCopyPath('AGENTS.md', 'CLAUDE.md');
+        $this->linkOrCopyPath('.agents', '.claude');
+    }
 
-        if (! is_dir($source)) {
+    private function linkOrCopyPath(string $from, string $to): void
+    {
+        $source = $this->rootDir.'/'.$from;
+        $destination = $this->rootDir.'/'.$to;
+
+        if (! file_exists($source)) {
             return;
         }
 
-        $this->removePath('.claude/skills');
+        $this->removePath($to);
+
+        if (! is_dir(dirname($destination))) {
+            mkdir(dirname($destination), 0755, true);
+        }
+
+        if (@symlink($from, $destination)) {
+            $this->trackModified($to);
+
+            return;
+        }
+
+        $this->copyPath($source, $destination);
+        $this->trackModified($to);
+    }
+
+    private function copyPath(string $source, string $destination): void
+    {
+        if (! is_dir($source)) {
+            copy($source, $destination);
+
+            return;
+        }
+
+        if (! is_dir($destination)) {
+            mkdir($destination, 0755, true);
+        }
 
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator(
@@ -1599,10 +1636,7 @@ class LaravelPackageSkeletonConfigurator
         );
 
         foreach ($iterator as $item) {
-            $target =
-                $destination.
-                '/'.
-                substr($item->getPathname(), strlen($source) + 1);
+            $target = $destination.'/'.substr($item->getPathname(), strlen($source) + 1);
 
             if ($item->isDir()) {
                 if (! is_dir($target)) {
@@ -1612,26 +1646,8 @@ class LaravelPackageSkeletonConfigurator
                 continue;
             }
 
-            if (! is_dir(dirname($target))) {
-                mkdir(dirname($target), 0755, true);
-            }
-
             copy($item->getPathname(), $target);
-            $this->trackModified($target);
         }
-    }
-
-    private function copyAgentsMarkdownToClaude(): void
-    {
-        $source = $this->rootDir.'/AGENTS.md';
-        $destination = $this->rootDir.'/CLAUDE.md';
-
-        if (! file_exists($source)) {
-            return;
-        }
-
-        copy($source, $destination);
-        $this->trackModified($destination);
     }
 
     private function cleanupEmptyDirectories(): void
