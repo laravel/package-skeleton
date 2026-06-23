@@ -23,7 +23,7 @@ Add package features in the right place and wire them through the service provid
 
 ## Provider Wiring
 
-1. Keep the existing service provider method split. If the package uses names like `bootConfig`, `bootRoutes`, `bootViews`, `bootTranslations`, `bootMigrations`, `bootAssets`, or `bootCommands`, add new behavior to the matching concern.
+1. Keep provider wiring in `register()` or `boot()` unless extracting a method makes a real repeated concern clearer.
 2. Put container bindings and `mergeConfigFrom` calls in `register()` when the host app must be able to override configuration.
 3. Put resource loading in boot-time methods with Laravel-native APIs such as `loadRoutesFrom`, `loadViewsFrom`, and `loadTranslationsFrom`.
 4. Guard console-only publishing and command registration with `runningInConsole()` before calling `publishes`, `publishesMigrations`, or `commands`.
