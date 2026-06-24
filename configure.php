@@ -711,7 +711,7 @@ class LaravelPackageSkeletonConfigurator
             callout(
                 label: 'Next Steps',
                 content: [
-                    Element::bulletedList($result['summary']['manual_steps']),
+                    Element::bulletedList($result['summary']['manual_steps'], spaced: true),
                 ],
             );
         }
