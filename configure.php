@@ -5,10 +5,12 @@ declare(strict_types=1);
 
 use Laravel\AgentDetector\AgentDetector;
 use Laravel\Chisel\Chisel;
+use Laravel\Prompts\Elements\Element;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
 
+use function Laravel\Prompts\callout;
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
@@ -706,23 +708,12 @@ class LaravelPackageSkeletonConfigurator
         }
 
         if (($result['summary']['manual_steps'] ?? []) !== []) {
-            info('<bg=green;options=bold;fg=black> Next Steps </>');
-
-            foreach ($result['summary']['manual_steps'] as $manualStep) {
-                $lines = wordwrap($manualStep, width: 60);
-                $lines = explode(PHP_EOL, $lines);
-                $finalLines = [];
-
-                foreach ($lines as $index => $line) {
-                    if ($index === 0) {
-                        $finalLines[] = '· '.$line;
-                    } else {
-                        $finalLines[] = '  '.$line;
-                    }
-                }
-
-                info(implode(PHP_EOL, $finalLines));
-            }
+            callout(
+                label: 'Next Steps',
+                content: [
+                    Element::bulletedList($result['summary']['manual_steps']),
+                ],
+            );
         }
 
         outro('Package configured successfully');
