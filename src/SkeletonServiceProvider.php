@@ -41,9 +41,11 @@ class SkeletonServiceProvider extends ServiceProvider
         $this->loadTranslationsFrom(__DIR__.'/../lang', 'skeleton');
         /* @end-chisel-translations */
 
+        /* @chisel-any-features */
         if (! $this->app->runningInConsole()) {
             return;
         }
+        /* @end-chisel-any-features */
 
         /* @chisel-config */
         $this->publishes([

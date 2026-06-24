@@ -1409,6 +1409,12 @@ class LaravelPackageSkeletonConfigurator
     {
         $featureTest = $this->rootDir.'/tests/Feature/ExampleTest.php';
 
+        if (empty($selectedFeatures)) {
+            $this->removeChiselSection($this->providerPath(), 'any-features');
+        } else {
+            $this->removeChiselSectionMarkers($this->providerPath(), 'any-features');
+        }
+
         foreach ($selectedFeatures as $section) {
             $this->removeChiselSectionMarkers($this->providerPath(), $section);
             $this->removeChiselSectionMarkers($featureTest, $section);
