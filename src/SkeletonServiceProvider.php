@@ -65,17 +65,17 @@ class SkeletonServiceProvider extends ServiceProvider
         ], ['skeleton', 'skeleton-lang']);
         /* @end-chisel-translations */
 
-        /* @chisel-migrations */
-        $this->publishesMigrations([
-            __DIR__.'/../database/migrations' => database_path('migrations'),
-        ], ['skeleton', 'skeleton-migrations']);
-        /* @end-chisel-migrations */
-
         /* @chisel-assets */
         $this->publishes([
             __DIR__.'/../public' => public_path('vendor/skeleton'),
         ], ['skeleton', 'skeleton-assets']);
         /* @end-chisel-assets */
+
+        /* @chisel-migrations */
+        $this->publishesMigrations([
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
+        ], ['skeleton', 'skeleton-migrations']);
+        /* @end-chisel-migrations */
 
         /* @chisel-commands */
         $this->commands([
