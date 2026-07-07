@@ -5,7 +5,6 @@ declare(strict_types=1);
 
 use Laravel\AgentDetector\AgentDetector;
 use Laravel\Chisel\Chisel;
-use Laravel\Prompts\Concerns\Colors;
 use Laravel\Prompts\Elements\Element;
 use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Input\InputDefinition;
@@ -539,7 +538,7 @@ class Tools
 
 class LaravelPackageSkeletonConfigurator
 {
-    use Colors, FormatsStrings, InteractsWithGitHub;
+    use FormatsStrings, InteractsWithGitHub;
 
     /**
      * @var array{'mode': string, 'visibility'?: string}
@@ -714,7 +713,7 @@ class LaravelPackageSkeletonConfigurator
             $installerSteps = [
                 'You can start your local development using:',
                 "`cd {$this->input->getOption('installer-dir')}`",
-                $this->bold('New to Laravel?').' Check out our '.Element::link(
+                "\e[1mNew to Laravel?\e[22m".' Check out our '.Element::link(
                     'https://laravel.com/docs/packages',
                     'package documentation',
                 ).'.',
