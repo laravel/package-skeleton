@@ -1,6 +1,11 @@
 {
     "preset": "laravel",
     "rules": {
+        "no_extra_blank_lines": {
+            "tokens": [
+                "curly_brace_block"
+            ]
+        },
         "blank_line_before_statement": {
             "statements": [
                 "break",
