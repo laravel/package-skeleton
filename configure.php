@@ -707,11 +707,26 @@ class LaravelPackageSkeletonConfigurator
             return self::FAILURE;
         }
 
+        $installerSteps = [];
+
+        if ($this->input->getOption('installer-dir')) {
+            $installerSteps = [
+                'You can start your local development using:',
+                "`cd {$this->input->getOption('installer-dir')}`",
+                "\e[1mNew to Laravel?\e[22m".' Check out our '.Element::link(
+                    'https://laravel.com/docs/packages',
+                    'package documentation',
+                ).'.',
+                Element::heading('Build something amazing!'),
+            ];
+        }
+
         if (($result['summary']['manual_steps'] ?? []) !== []) {
             callout(
                 label: 'Next Steps',
                 content: [
                     Element::bulletedList($result['summary']['manual_steps'], spaced: true),
+                    ...$installerSteps,
                 ],
             );
         }
@@ -1842,6 +1857,7 @@ class LaravelPackageSkeletonConfigurator
 
         return new InputDefinition([
             new InputOption('no-interaction', 'n', InputOption::VALUE_NONE, 'Run non-interactively with all defaults'),
+            new InputOption('installer-dir', null, InputOption::VALUE_REQUIRED, 'Directory specified by the Laravel installer'),
             ...$featureOptions,
             ...$metadataOptions,
             new InputOption('help', 'h', InputOption::VALUE_NONE, 'Show usage information'),
