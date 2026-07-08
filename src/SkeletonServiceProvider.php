@@ -73,7 +73,7 @@ class SkeletonServiceProvider extends ServiceProvider
 
         /* @chisel-migrations */
         $this->publishesMigrations([
-            __DIR__.'/../database/migrations' => database_path('migrations'),
+            __DIR__ . '/../database/migrations' => database_path('migrations'),
         ], ['skeleton', 'skeleton-migrations']);
         /* @end-chisel-migrations */
 
