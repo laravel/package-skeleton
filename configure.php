@@ -782,10 +782,7 @@ class LaravelPackageSkeletonConfigurator
     /** @param  array<string, mixed>  $payload */
     private function writeJson(array $payload): void
     {
-        fwrite(
-            STDOUT,
-            json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES).PHP_EOL,
-        );
+        fwrite(STDOUT, json_encode($payload).PHP_EOL);
     }
 
     private function isGithubMode(string $mode): bool
