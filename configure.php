@@ -843,7 +843,7 @@ class LaravelPackageSkeletonConfigurator
         $this->features->add(
             Feature::from(
                 key: 'config',
-                label: 'Config file',
+                label: 'Configuration file',
             )->onRemove(fn () => [
                 $this->removePath('config'),
                 $this->removeChiselSection($this->providerPath(), 'config'),
@@ -891,29 +891,6 @@ class LaravelPackageSkeletonConfigurator
 
         $this->features->add(
             Feature::from(
-                key: 'migrations',
-                label: 'Migrations',
-            )->onRemove(fn () => [
-                $this->removePath('database/migrations'),
-                $this->removeChiselSection($this->providerPath(), 'migrations'),
-                $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
-                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
-            ]),
-        );
-
-        $this->features->add(
-            Feature::from(
-                key: 'assets',
-                label: 'Assets',
-            )->onRemove(fn () => [
-                $this->removePath('public'),
-                $this->removeChiselSection($this->providerPath(), 'assets'),
-                $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
-            ]),
-        );
-
-        $this->features->add(
-            Feature::from(
                 key: 'commands',
                 label: 'Commands',
             )->onRemove(fn () => [
@@ -926,11 +903,34 @@ class LaravelPackageSkeletonConfigurator
 
         $this->features->add(
             Feature::from(
+                key: 'migrations',
+                label: 'Migrations',
+            )->onRemove(fn () => [
+                $this->removePath('database/migrations'),
+                $this->removeChiselSection($this->providerPath(), 'migrations'),
+                $this->removeMarkdownSection($readme, 'Publishing and Running the Migrations'),
+                $this->removeLinesContaining($this->rootDir.'/phpstan.neon.dist', ['        - database']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
                 key: 'facade',
                 label: 'Facade',
             )->onRemove(fn () => [
                 $this->removePath('src/Facades'),
                 $this->removeLinesContaining($readme, ['facade', 'Facade']),
+            ]),
+        );
+
+        $this->features->add(
+            Feature::from(
+                key: 'assets',
+                label: 'Assets',
+            )->onRemove(fn () => [
+                $this->removePath('public'),
+                $this->removeChiselSection($this->providerPath(), 'assets'),
+                $this->removeMarkdownSection($readme, 'Publishing the Public Assets'),
             ]),
         );
 
