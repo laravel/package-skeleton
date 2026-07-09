@@ -3,7 +3,10 @@
     "rules": {
         "no_extra_blank_lines": {
             "tokens": [
-                "curly_brace_block"
+                "curly_brace_block",
+                "extra",
+                "throw",
+                "use"
             ]
         },
         "blank_line_before_statement": {
