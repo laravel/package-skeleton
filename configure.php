@@ -335,11 +335,30 @@ class Metadata
         ];
     }
 
-    public function useDefaults(): void
+    /** @return list<string> */
+    public function useDefaults(): array
     {
+        $errors = [];
+
         foreach ($this->fields() as $key => $field) {
-            $this->data[$key] = $field['default']();
+            $value = $field['default']();
+            $error = isset($field['validate']) ? $field['validate']($value) : null;
+
+            if ($error !== null) {
+                $errors[] = sprintf('%s: %s', $field['label'], $error);
+
+                // Later defaults derive from the package name; stop before they crash on an invalid one.
+                if ($key === 'package_name') {
+                    break;
+                }
+
+                continue;
+            }
+
+            $this->data[$key] = $value;
         }
+
+        return $errors;
     }
 
     public function toArray(): array
@@ -738,7 +757,13 @@ class LaravelPackageSkeletonConfigurator
 
     private function runNonInteractive(): int
     {
-        $this->metadata->useDefaults();
+        $errors = $this->metadata->useDefaults();
+
+        if ($errors !== []) {
+            $this->writeJson($this->failed($errors));
+
+            return self::FAILURE;
+        }
 
         $result = $this->configure([
             'features' => $this->flaggedFeatures() ?: $this->features->keys(),
