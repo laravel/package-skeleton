@@ -613,7 +613,7 @@ class LaravelPackageSkeletonConfigurator
         if (! $this->dependenciesAreInstalled()) {
             $message = 'Composer dependencies are not installed. Run `composer install` before `php configure.php`.';
 
-            if ($this->hasNonInteractiveFlags()) {
+            if ($this->hasNonInteractiveSignals()) {
                 $this->writeJson($this->failed($message));
             } else {
                 fwrite(STDERR, $message.PHP_EOL);
@@ -1839,14 +1839,21 @@ class LaravelPackageSkeletonConfigurator
     {
         return $this->input()->getOption('no-interaction') ||
             getenv('COMPOSER_NO_INTERACTION') === '1' ||
+            ! $this->stdinIsInteractive() ||
             AgentDetector::detect()->isAgent;
     }
 
-    private function hasNonInteractiveFlags(): bool
+    private function hasNonInteractiveSignals(): bool
     {
         return getenv('COMPOSER_NO_INTERACTION') === '1' ||
+            ! $this->stdinIsInteractive() ||
             in_array('--no-interaction', $_SERVER['argv'] ?? []) ||
             in_array('-n', $_SERVER['argv'] ?? []);
+    }
+
+    private function stdinIsInteractive(): bool
+    {
+        return defined('STDIN') && stream_isatty(STDIN);
     }
 
     private function definition(): InputDefinition
