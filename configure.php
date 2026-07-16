@@ -1118,7 +1118,7 @@ class LaravelPackageSkeletonConfigurator
         $this->linkClaudeGuidance();
         $this->cleanupEmptyDirectories();
 
-        $formatResult = $this->runCommand([PHP_BINARY, 'vendor/bin/pint', '--quiet']);
+        $formatResult = $this->runCommand([PHP_BINARY, 'vendor/bin/pint']);
 
         if (! $formatResult['success']) {
             return $this->failed('Code formatting failed: '.$formatResult['output']);
