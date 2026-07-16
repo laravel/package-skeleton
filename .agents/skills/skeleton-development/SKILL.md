@@ -18,9 +18,10 @@ Evolve the starter kit without making it less useful for future package authors.
 2. Keep starter guidance minimal and split skeleton-maintenance rules from package-author rules.
 3. Use temporary phase scaffold tests when proving repository shape, file parity, or generated scaffolding; delete those tests before final validation.
 4. Maintain skeleton guidance in `AGENTS.md`, package guidance in `AGENTS_PACKAGE.md`, and package-facing local skills in `.agents/skills`; `configure.php` generates package `AGENTS.md`, then links `CLAUDE.md` to `AGENTS.md` and `.claude` to `.agents` during package configuration.
-5. Keep `configure.php` feature and tool pruning maps, opt-in non-interactive `--[feature]` flags, service provider wiring, Composer metadata, `README_PACKAGE.md`, `AGENTS_PACKAGE.md`, AI guidance, skills, and publishable files aligned.
-6. Keep configure-only dependencies in `require-dev`, include them in configure dependency checks, and prune them from configured package Composer metadata.
-7. Keep development-time authoring files out of Composer dist archives with `.gitattributes` when they are not runtime package files.
+5. Keep `configure.php` feature and tool pruning maps, opt-in non-interactive `--[feature]` and `--[tool]` flags, service provider wiring, Composer metadata, `README_PACKAGE.md`, `AGENTS_PACKAGE.md`, AI guidance, skills, and publishable files aligned.
+6. Keep configure-only dependencies in `require-dev`, include them in configure dependency checks, and prune them through the configure `composer remove --no-install` step so the configured package's `composer.json` and `composer.lock` stay in sync.
+7. Preserve the non-interactive contract: metadata validators run against flag and default values before any file changes, results print as single-line JSON on stdout, and `--no-interaction`, `COMPOSER_NO_INTERACTION=1`, agent detection, and non-TTY stdin all trigger the mode.
+8. Keep development-time authoring files out of Composer dist archives with `.gitattributes` when they are not runtime package files.
 
 ## References
 
@@ -41,8 +42,8 @@ Evolve the starter kit without making it less useful for future package authors.
 - Add temporary Phase tests to lock down generated file shape, run them to prove the change, then delete them before the final `composer test`.
 - Update package-facing README content in `README_PACKAGE.md`; `README.md` should stay focused on using this skeleton.
 - When adding a selectable package feature, add both the starter files and the matching configure pruning behavior so package authors can select or omit it cleanly.
-- When adding or renaming a selectable feature key, verify the derived non-interactive `--[feature]` flag includes only the expected generated files.
-- When adding a configure-only helper package, update `dependenciesAreInstalled()`, `updateComposerJson()` pruning, and temporary copied-skeleton configure checks together.
+- When adding or renaming a selectable feature or tool key, verify the derived non-interactive flag includes only the expected generated files.
+- When adding a configure-only helper package, update `dependenciesAreInstalled()`, the `removeConfigureDependencies()` package list, and temporary copied-skeleton configure checks together.
 
 ## Anti-Patterns
 
