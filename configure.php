@@ -699,7 +699,7 @@ class LaravelPackageSkeletonConfigurator
         $tools = multiselect(
             'Package Tools',
             $this->tools->labels(),
-            $this->tools->keys(),
+            $this->flaggedTools() ?: $this->tools->keys(),
             info: fn (string $key) => $this->tools->get($key)->description ?? '',
         );
 
@@ -767,7 +767,7 @@ class LaravelPackageSkeletonConfigurator
 
         $result = $this->configure([
             'features' => $this->flaggedFeatures() ?: $this->features->keys(),
-            'tools' => $this->tools->keys(),
+            'tools' => $this->flaggedTools() ?: $this->tools->keys(),
         ]);
 
         $this->writeJson($this->nonInteractivePayload($result));
@@ -795,6 +795,17 @@ class LaravelPackageSkeletonConfigurator
             array_filter(
                 $this->features->keys(),
                 fn (string $feature): bool => (bool) $this->input()->getOption($this->keyToOption($feature)),
+            ),
+        );
+    }
+
+    /** @return list<string> */
+    private function flaggedTools(): array
+    {
+        return array_values(
+            array_filter(
+                $this->tools->keys(),
+                fn (string $tool): bool => (bool) $this->input()->getOption($this->keyToOption($tool)),
             ),
         );
     }
@@ -1894,6 +1905,16 @@ class LaravelPackageSkeletonConfigurator
             $this->features->keys(),
         );
 
+        $toolOptions = array_map(
+            fn (string $key) => new InputOption(
+                $this->keyToOption($key),
+                null,
+                InputOption::VALUE_NONE,
+                sprintf('Include %s', $this->tools->get($key)->label),
+            ),
+            $this->tools->keys(),
+        );
+
         $metadataOptions = array_map(
             fn (string $key, array $field) => new InputOption(
                 str_replace('_', '-', $key),
@@ -1909,6 +1930,7 @@ class LaravelPackageSkeletonConfigurator
             new InputOption('no-interaction', 'n', InputOption::VALUE_NONE, 'Run non-interactively with all defaults'),
             new InputOption('installer-dir', null, InputOption::VALUE_REQUIRED, 'Directory specified by the Laravel installer'),
             ...$featureOptions,
+            ...$toolOptions,
             ...$metadataOptions,
             new InputOption('help', 'h', InputOption::VALUE_NONE, 'Show usage information'),
         ]);
