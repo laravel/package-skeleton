@@ -281,7 +281,7 @@ class Metadata
                 'label' => 'Package name',
                 'hint' => 'Used in composer.json and as the package name in Packagist.',
                 'default' => fn () => $this->input->getOption('package-name') ?? implode('/', [
-                    $this->ghUsername() ?: $this->slug($this->authorName()) ?: 'vendor-name',
+                    $this->slug($this->ghUsername() ?: $this->authorName()) ?: 'vendor-name',
                     $this->slug($directoryName === 'package-skeleton' ? 'my-package' : $directoryName),
                 ]),
                 'validate' => function ($value) {
