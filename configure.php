@@ -1124,6 +1124,8 @@ class LaravelPackageSkeletonConfigurator
             return $this->failed('Code formatting failed: '.$formatResult['output']);
         }
 
+        $this->removeConfigureDependencies();
+
         if ($this->isGithubMode('create')) {
             $github = $this->createGitHubRepository($this->githubConfig);
 
@@ -1142,12 +1144,7 @@ class LaravelPackageSkeletonConfigurator
             $this->removePath('configure.php');
         }
 
-        $composerBinary = getenv('COMPOSER_BINARY');
-        $composerCommand = $composerBinary !== false
-            ? [PHP_BINARY, $composerBinary]
-            : ['composer'];
-
-        $this->runCommand([...$composerCommand, 'dump-autoload', '--quiet']);
+        $this->runCommand([...$this->composerCommand(), 'dump-autoload', '--quiet']);
 
         sort($this->summary['modified_files']);
         sort($this->summary['removed_paths']);
@@ -1395,12 +1392,6 @@ class LaravelPackageSkeletonConfigurator
             ];
         }
 
-        unset(
-            $composer['require-dev']['laravel/agent-detector'],
-            $composer['require-dev']['laravel/chisel'],
-            $composer['require-dev']['laravel/prompts'],
-        );
-
         if (($composer['extra']['laravel'] ?? []) === []) {
             unset($composer['extra']['laravel']);
         }
@@ -1412,6 +1403,36 @@ class LaravelPackageSkeletonConfigurator
         );
 
         $this->trackModified($path);
+    }
+
+    private function removeConfigureDependencies(): void
+    {
+        $result = $this->runCommand([
+            ...$this->composerCommand(),
+            'remove',
+            '--dev',
+            '--no-install',
+            '--no-scripts',
+            '--no-audit',
+            '--quiet',
+            'laravel/agent-detector',
+            'laravel/chisel',
+            'laravel/prompts',
+        ]);
+
+        if ($result['success']) {
+            $this->trackModified('composer.lock');
+        }
+    }
+
+    /** @return list<string> */
+    private function composerCommand(): array
+    {
+        $composerBinary = getenv('COMPOSER_BINARY');
+
+        return $composerBinary !== false
+            ? [PHP_BINARY, $composerBinary]
+            : ['composer'];
     }
 
     private function removeMarkdownSection(string $path, string $heading): void
