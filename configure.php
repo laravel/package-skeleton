@@ -1928,7 +1928,9 @@ class LaravelPackageSkeletonConfigurator
 
         return new InputDefinition([
             new InputOption('no-interaction', 'n', InputOption::VALUE_NONE, 'Run non-interactively with all defaults'),
+            new InputOption('ansi', null, InputOption::VALUE_NONE, 'Force ANSI output'),
             new InputOption('no-ansi', null, InputOption::VALUE_NONE, 'Disable ANSI output'),
+            new InputOption('verbose', 'v', InputOption::VALUE_NONE, 'Increase verbosity of output'),
             new InputOption('quiet', 'q', InputOption::VALUE_NONE, 'Quiet mode'),
             new InputOption('installer-dir', null, InputOption::VALUE_REQUIRED, 'Directory specified by the Laravel installer'),
             ...$featureOptions,
