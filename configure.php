@@ -1141,7 +1141,7 @@ class LaravelPackageSkeletonConfigurator
             $github = $this->createGitHubRepository($this->githubConfig);
 
             if (! $github['success']) {
-                return $this->failed($github['message']);
+                return $this->failed($github['errors'] ?? 'GitHub repository creation failed.', ['github' => $github]);
             }
         }
 
