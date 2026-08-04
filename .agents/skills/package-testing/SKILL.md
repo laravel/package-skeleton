@@ -1,6 +1,6 @@
 ---
 name: package-testing
-description: "Use this skill when writing, editing, fixing, or reviewing package tests with Pest 4 and Orchestra Testbench, including TDD, feature tests, unit tests, type coverage, arch tests, workbench behavior, commands, routes, config, migrations, and publishable resources."
+description: "Use this skill when writing, editing, fixing, or reviewing package tests with Pest 4/5 and Orchestra Testbench, including TDD, feature tests, unit tests, type coverage, arch tests, workbench behavior, commands, routes, config, migrations, and publishable resources."
 license: MIT
 metadata:
   author: laravel
@@ -10,7 +10,7 @@ metadata:
 
 ## Primary Goal
 
-Prove package behavior with Pest 4, Orchestra Testbench, and the local `tests/TestCase.php` setup before or alongside implementation.
+Prove package behavior with Pest 4/5, Orchestra Testbench, and the local `tests/TestCase.php` setup before or alongside implementation.
 
 ## Workflow
 
