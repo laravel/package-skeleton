@@ -5,4 +5,5 @@ parameters:
         - config
         - database
         - routes
+        - tests
     tmpDir: build/phpstan

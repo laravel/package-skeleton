@@ -4,7 +4,7 @@ A starter template for building beautiful Laravel packages.
 
 ## Introduction
 
-This skeleton provides everything you need to start building a Laravel package. It comes pre-configured with a service provider, testing via Pest, static analysis via Larastan, code formatting via Pint, and a workbench application for end-to-end development — all wired up and ready to go.
+This skeleton provides everything you need to start building a Laravel package. It comes pre-configured with a service provider, testing via Pest, test refactoring via Pest Rector, static analysis via Larastan and Pest PHPStan, code formatting via Pint, and a workbench application for end-to-end development — all wired up and ready to go.
 
 An interactive configuration script personalizes the skeleton for your package during `composer install`, setting up your namespace, service provider, and only the features you need.
 

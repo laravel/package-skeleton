@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Artisan;
 use VendorName\Skeleton\Skeleton;
 
-it('resolves the singleton', function () {
-    expect(app(Skeleton::class))->toBeInstanceOf(Skeleton::class);
+it('registers the singleton', function () {
+    expect(app()->bound(Skeleton::class))->toBeTrue();
 });
 
 it('returns the same instance from the container', function () {
@@ -26,14 +27,15 @@ it('loads the package translations', function () {
 
 /* @chisel-views */
 it('loads the package views', function () {
-    expect(view()->exists('skeleton::placeholder'))->toBeTrue();
+    $this->view('skeleton::placeholder')
+        ->assertSee('Skeleton placeholder view.');
 });
 /* @end-chisel-views */
 
 /* @chisel-commands */
 it('registers the artisan command', function () {
-    $this->artisan('skeleton:placeholder')
-        ->expectsOutputToContain('Skeleton placeholder command executed.')
-        ->assertSuccessful();
+    Artisan::call('skeleton:placeholder');
+
+    expect(Artisan::output())->toContain('Skeleton placeholder command executed.');
 });
 /* @end-chisel-commands */

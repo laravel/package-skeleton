@@ -30,8 +30,11 @@
         "orchestra/testbench": "^10.0||^11.0",
         "pestphp/pest": "^4.6||^5.0",
         "pestphp/pest-plugin-laravel": "^4.1||^5.0",
+        "pestphp/pest-plugin-phpstan": "^4.0||^5.0",
+        "pestphp/pest-plugin-rector": "^4.0||^5.0",
         "pestphp/pest-plugin-type-coverage": "^4.0||^5.0",
-        "phpstan/extension-installer": "^1.4"
+        "phpstan/extension-installer": "^1.4",
+        "rector/rector": "^2.0"
     },
     "autoload": {
         "psr-4": {
@@ -77,6 +80,12 @@
         "analyse": [
             "vendor/bin/phpstan analyse"
         ],
+        "refactor": [
+            "vendor/bin/rector process"
+        ],
+        "refactor:check": [
+            "vendor/bin/rector process --dry-run"
+        ],
         "test:types": [
             "vendor/bin/pest --type-coverage --min=100"
         ],
@@ -86,6 +95,7 @@
         "test": [
             "@analyse",
             "@lint:check",
+            "@refactor:check",
             "@test:types",
             "@test:unit"
         ],

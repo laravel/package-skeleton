@@ -15,6 +15,8 @@ This repository is a Laravel package. Keep the package focused, idiomatic, and e
 - Full validation: `composer test`
 - Formatting check: `composer lint:check`
 - Static analysis: `composer analyse`
+- Pest refactoring check: `composer refactor:check`
+- Apply Pest refactoring: `composer refactor`
 - Pest tests: `composer test:unit`
 - Workbench build: `composer build`
 - Workbench server: `composer serve`

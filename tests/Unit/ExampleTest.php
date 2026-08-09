@@ -1,7 +1,8 @@
 <?php
 
 declare(strict_types=1);
+use VendorName\Skeleton\Skeleton;
 
-it('is true', function () {
-    expect(true)->toBeTrue();
+it('loads the package class', function () {
+    expect(class_exists(Skeleton::class))->toBeTrue();
 });
